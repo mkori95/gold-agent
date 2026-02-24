@@ -653,16 +653,40 @@ Required in .env:
 
 ## 📍 Current Status
 
-**Phase:** Pre-development — architecture complete, ready to start Phase 1
+**Phase:** Phase 1 — Ready to start building the data pipeline
 
-**Last Completed:** Full architecture design, phase planning, folder structure design
+**Last Completed:** 
+- Full architecture and phase planning done
+- GitHub repo created (gold-agent) — private repo
+- SSH keys set up on Mac — connected to GitHub securely
+- Complete project folder structure created — all folders and placeholder files across all 4 phases
+- CONTEXT.md added to repo as single source of truth
+- Everything pushed to GitHub successfully
 
 **Next Immediate Task:**
-1. Create GitHub repository named `gold-agent`
-2. Set up folder structure with all placeholder files
-3. Create initial README.md
-4. Create CONTEXT.md in repo
-5. Start writing Phase 1 code — beginning with `config/sources.json`
+Verify all data sources that expose APIs using Postman.
+
+Do it in this exact order — one source at a time:
+
+**Step 1 — Sources to verify in Postman (API sources only):**
+- GoldAPI.io — requires free API key signup
+- Gold-API.com — unlimited, no key needed
+- FreeGoldAPI.com — unlimited, no key needed
+- Yahoo Finance (GC=F) — unlimited, no key needed
+- IBJA — verify if programmatic access is actually available
+
+**Step 2 — For each source:**
+- Load the endpoint in Postman
+- Confirm we get a valid response
+- Understand what fields are returned
+- Note any rate limits or auth requirements
+
+**Step 3 — After Postman verification:**
+- Document what each API returns
+- Update sources.json with confirmed endpoints
+- Then start writing the scraper code
+
+**Do NOT start writing any scraper code until all API sources are verified in Postman.**
 
 ---
 
@@ -682,8 +706,10 @@ Required in .env:
 | Rate calculation | Trimmed mean + reputation weight | Protects against outliers |
 | Commercial model | Free first, partnerships later | Build users before monetising |
 | Code philosophy | One file one responsibility | Readable, testable, maintainable |
+| Version control | SSH keys on Mac | No username/password needed |
+| Project structure | All placeholder files created upfront | See full shape of project from day one |
 
 ---
 
-*Last updated: Start of project — full architecture design session complete*
+*Last updated: Session 2 — GitHub repo created, full project structure pushed*
 *Update this file at the end of every working session*
