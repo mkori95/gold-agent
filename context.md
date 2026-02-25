@@ -653,75 +653,53 @@ Required in .env:
 
 ## 📍 Current Status
 
-**Phase:** Phase 1 — Data pipeline ready to start building
+**Phase:** Phase 1 — Scraper engine complete — ready to build site scrapers
 
 **Last Completed:**
-- GitHub repo created and full project structure pushed
-- SSH keys set up on Mac
-- All API sources researched, tested and verified in Postman
-- Metals list finalised — Gold, Silver, Platinum, Copper, Diamond
-- config/metals.json created and pushed
-- config/sources.json created and pushed — all sources documented
-- .env file created locally with real API keys — never pushed to GitHub
-- .env.example created with all placeholder variables across all phases
-
-**Confirmed Sources — Final List:**
-
-API Sources (verified in Postman):
-- Gold-API.com — unlimited, free, USD live prices — PRIMARY
-- Metals.Dev — 100/month, free, MCX + IBJA + INR conversion — KEY SOURCE
-- GoldAPI.io — 100/month, free, karat-wise gram prices — UNIQUE VALUE
-- FreeGoldAPI.com — unlimited, free, historical data only — PHASE 2
-
-Scraper Sources (not built yet):
-- GoodReturns.in — city-wise INR rates — PRIMARY city source
-- Moneycontrol — MCX backup rates
-- Rapaport — diamond index only — weekly
-
-Dropped Sources (with reasons):
-- Yahoo Finance — no clean REST API, redundant
-- MetalpriceAPI.com — free tier = 24hr delay, not suitable
-- Metals-API.com — paid only, no free tier
-- Kitco.com — redundant, Gold-API.com covers same data
-
-Future Paid Sources (Phase 4):
-- Metals-API.com — $4.99/month — Indian city prices as clean API
-- IBJA Official API — contact for pricing — RBI approved benchmark
-
-**Metals Covered:**
-- Gold — live prices, 22K/24K karat breakdown, city-wise INR
-- Silver — live prices, city-wise INR
-- Platinum — live prices
-- Copper — live prices (added for Indian festival buying context)
-- Diamond — education only, Rapaport index, no single live price
+- Virtual environment created and configured
+- requirements.txt filled with all dependencies
+- VS Code configured to use venv Python interpreter
+- Scraper engine built — 4 files complete:
+  - base_scraper.py — foundation class
+  - api_fetcher.py — REST API handler
+  - html_scraper.py — HTML scraper handler
+  - data_normaliser.py — standard format converter
+- metals.json updated — price ranges moved to config
+- Everything pushed to GitHub
 
 **Next Immediate Task:**
-Build the scraper engine — starting with the base classes.
+Build individual site scrapers — one at a time.
 
-Do it in this exact order:
+Start in this exact order:
 
-Step 1 — Build src/scrapers/engine/base_scraper.py
-- Explain what it does before writing any code
-- Wait for confirmation before proceeding
+Step 1 — src/scrapers/sites/gold_api_com.py
+- Simplest source — no auth, unlimited, clean JSON
+- Test immediately after building
+- Wait for confirmation before next
 
-Step 2 — Build src/scrapers/engine/api_fetcher.py
-- Handles all API source calls
-- Reads from sources.json
-- Wait for confirmation before proceeding
+Step 2 — src/scrapers/sites/metals_dev.py
+- Most complex — multiple metals, INR rate, MCX, IBJA
+- Update INR rate in data_normaliser after each run
 
-Step 3 — Build src/scrapers/engine/html_scraper.py
-- Handles all scraper source calls
-- Wait for confirmation before proceeding
+Step 3 — src/scrapers/sites/goldapi_io.py
+- Karat prices — header auth
+- Map price_gram_24k and price_gram_22k correctly
 
-Step 4 — Build src/scrapers/engine/data_normaliser.py
-- Normalises all responses to standard format
-- Wait for confirmation before proceeding
+Step 4 — src/scrapers/sites/free_gold_api.py
+- Historical only — different handling
+- Returns array not single record
 
-Step 5 — Only after all engine files are done
-- Start building individual site scrapers in src/scrapers/sites/
-- Start with goldapi_com.py first — simplest, no auth
+Step 5 — src/scrapers/sites/goodreturns.py
+- HTML scraper — city wise INR rates
+- Use fetch_multiple for 8 cities
 
-Do NOT start writing site scrapers until the engine is complete.
+Step 6 — src/scrapers/sites/moneycontrol.py
+- HTML scraper — MCX backup
+
+Step 7 — src/scrapers/sites/rapaport.py
+- HTML scraper — diamond index only — weekly
+
+Do NOT skip ahead. Build and test one at a time.
 
 ---
 
@@ -744,13 +722,17 @@ Do NOT start writing site scrapers until the engine is complete.
 | Version control | SSH keys on Mac | No username/password needed |
 | Project structure | All placeholder files created upfront | See full shape of project from day one |
 | Metals list | Gold, Silver, Platinum, Copper, Diamond | Copper added for Indian festival context |
-| Yahoo Finance | Dropped | No clean REST API, redundant with Gold-API.com |
-| MetalpriceAPI.com | Dropped for now | Free tier = 24hr delay, not suitable for live prices |
+| Yahoo Finance | Dropped | No clean REST API, redundant |
+| MetalpriceAPI.com | Dropped for now | Free tier = 24hr delay |
 | Metals-API.com | Future Phase 4 | Paid only — add when revenue starts |
 | GoldAPI.io schedule | Twice daily | Stay within 100/month free limit |
 | Metals.Dev schedule | Twice daily | Stay within 100/month free limit |
+| Price ranges | Stored in metals.json | Not hardcoded — change without code edits |
+| Karat prices | Calculate from purity if not provided | Works for all sources automatically |
+| INR conversion | Stored from Metals.Dev | Single source of truth for exchange rate |
+| Timestamp formats | Normalised to ISO 8601 UTC | Consistent across all sources |
 
 ---
 
-*Last updated: Session 3 — All API sources verified in Postman, metals.json and sources.json created and pushed*
+*Last updated: Session 4 — Scraper engine complete, all 4 engine files built and pushed*
 *Update this file at the end of every working session*
