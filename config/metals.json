@@ -18,7 +18,11 @@
         { "karat": "18K", "purity": 0.7500, "common_use": "jewellery" }
       ],
       "sources": ["gold_api_com", "metals_dev", "goldapi_io"],
-      "notes": "Primary metal — most important for Indian families"
+      "notes": "Primary metal — most important for Indian families",
+      "price_range_usd": {
+        "min": 500,
+        "max": 15000
+      }
     },
     {
       "id": "silver",
@@ -34,7 +38,11 @@
       "currencies": ["USD", "INR"],
       "karats": [],
       "sources": ["gold_api_com", "metals_dev", "goldapi_io"],
-      "notes": "Second most important — widely bought during Dhanteras"
+      "notes": "Second most important — widely bought during Dhanteras",
+      "price_range_usd": {
+        "min": 5,
+        "max": 500
+      }
     },
     {
       "id": "platinum",
@@ -50,7 +58,11 @@
       "currencies": ["USD", "INR"],
       "karats": [],
       "sources": ["gold_api_com", "metals_dev", "goldapi_io"],
-      "notes": "Growing interest in India — especially for jewellery"
+      "notes": "Growing interest in India — especially for jewellery",
+      "price_range_usd": {
+        "min": 200,
+        "max": 10000
+      }
     },
     {
       "id": "copper",
@@ -66,7 +78,11 @@
       "currencies": ["USD", "INR"],
       "karats": [],
       "sources": ["gold_api_com", "metals_dev"],
-      "notes": "Added for Indian families — copper vessels and idols bought during festivals"
+      "notes": "Added for Indian families — copper vessels and idols bought during festivals",
+      "price_range_usd": {
+        "min": 0.05,
+        "max": 50
+      }
     },
     {
       "id": "diamond",
@@ -82,7 +98,11 @@
       "currencies": ["USD", "INR"],
       "karats": [],
       "sources": ["rapaport"],
-      "notes": "No single live price — Rapaport index only — positioned as buying guide using 4C education"
+      "notes": "No single live price — Rapaport index only — positioned as buying guide using 4C education",
+      "price_range_usd": {
+        "min": 1000,
+        "max": 50000
+      }
     }
   ]
 }
