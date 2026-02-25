@@ -653,40 +653,75 @@ Required in .env:
 
 ## 📍 Current Status
 
-**Phase:** Phase 1 — Ready to start building the data pipeline
+**Phase:** Phase 1 — Data pipeline ready to start building
 
-**Last Completed:** 
-- Full architecture and phase planning done
-- GitHub repo created (gold-agent) — private repo
-- SSH keys set up on Mac — connected to GitHub securely
-- Complete project folder structure created — all folders and placeholder files across all 4 phases
-- CONTEXT.md added to repo as single source of truth
-- Everything pushed to GitHub successfully
+**Last Completed:**
+- GitHub repo created and full project structure pushed
+- SSH keys set up on Mac
+- All API sources researched, tested and verified in Postman
+- Metals list finalised — Gold, Silver, Platinum, Copper, Diamond
+- config/metals.json created and pushed
+- config/sources.json created and pushed — all sources documented
+- .env file created locally with real API keys — never pushed to GitHub
+- .env.example created with all placeholder variables across all phases
+
+**Confirmed Sources — Final List:**
+
+API Sources (verified in Postman):
+- Gold-API.com — unlimited, free, USD live prices — PRIMARY
+- Metals.Dev — 100/month, free, MCX + IBJA + INR conversion — KEY SOURCE
+- GoldAPI.io — 100/month, free, karat-wise gram prices — UNIQUE VALUE
+- FreeGoldAPI.com — unlimited, free, historical data only — PHASE 2
+
+Scraper Sources (not built yet):
+- GoodReturns.in — city-wise INR rates — PRIMARY city source
+- Moneycontrol — MCX backup rates
+- Rapaport — diamond index only — weekly
+
+Dropped Sources (with reasons):
+- Yahoo Finance — no clean REST API, redundant
+- MetalpriceAPI.com — free tier = 24hr delay, not suitable
+- Metals-API.com — paid only, no free tier
+- Kitco.com — redundant, Gold-API.com covers same data
+
+Future Paid Sources (Phase 4):
+- Metals-API.com — $4.99/month — Indian city prices as clean API
+- IBJA Official API — contact for pricing — RBI approved benchmark
+
+**Metals Covered:**
+- Gold — live prices, 22K/24K karat breakdown, city-wise INR
+- Silver — live prices, city-wise INR
+- Platinum — live prices
+- Copper — live prices (added for Indian festival buying context)
+- Diamond — education only, Rapaport index, no single live price
 
 **Next Immediate Task:**
-Verify all data sources that expose APIs using Postman.
+Build the scraper engine — starting with the base classes.
 
-Do it in this exact order — one source at a time:
+Do it in this exact order:
 
-**Step 1 — Sources to verify in Postman (API sources only):**
-- GoldAPI.io — requires free API key signup
-- Gold-API.com — unlimited, no key needed
-- FreeGoldAPI.com — unlimited, no key needed
-- Yahoo Finance (GC=F) — unlimited, no key needed
-- IBJA — verify if programmatic access is actually available
+Step 1 — Build src/scrapers/engine/base_scraper.py
+- Explain what it does before writing any code
+- Wait for confirmation before proceeding
 
-**Step 2 — For each source:**
-- Load the endpoint in Postman
-- Confirm we get a valid response
-- Understand what fields are returned
-- Note any rate limits or auth requirements
+Step 2 — Build src/scrapers/engine/api_fetcher.py
+- Handles all API source calls
+- Reads from sources.json
+- Wait for confirmation before proceeding
 
-**Step 3 — After Postman verification:**
-- Document what each API returns
-- Update sources.json with confirmed endpoints
-- Then start writing the scraper code
+Step 3 — Build src/scrapers/engine/html_scraper.py
+- Handles all scraper source calls
+- Wait for confirmation before proceeding
 
-**Do NOT start writing any scraper code until all API sources are verified in Postman.**
+Step 4 — Build src/scrapers/engine/data_normaliser.py
+- Normalises all responses to standard format
+- Wait for confirmation before proceeding
+
+Step 5 — Only after all engine files are done
+- Start building individual site scrapers in src/scrapers/sites/
+- Start with goldapi_com.py first — simplest, no auth
+
+Do NOT start writing site scrapers until the engine is complete.
 
 ---
 
@@ -708,8 +743,14 @@ Do it in this exact order — one source at a time:
 | Code philosophy | One file one responsibility | Readable, testable, maintainable |
 | Version control | SSH keys on Mac | No username/password needed |
 | Project structure | All placeholder files created upfront | See full shape of project from day one |
+| Metals list | Gold, Silver, Platinum, Copper, Diamond | Copper added for Indian festival context |
+| Yahoo Finance | Dropped | No clean REST API, redundant with Gold-API.com |
+| MetalpriceAPI.com | Dropped for now | Free tier = 24hr delay, not suitable for live prices |
+| Metals-API.com | Future Phase 4 | Paid only — add when revenue starts |
+| GoldAPI.io schedule | Twice daily | Stay within 100/month free limit |
+| Metals.Dev schedule | Twice daily | Stay within 100/month free limit |
 
 ---
 
-*Last updated: Session 2 — GitHub repo created, full project structure pushed*
+*Last updated: Session 3 — All API sources verified in Postman, metals.json and sources.json created and pushed*
 *Update this file at the end of every working session*
