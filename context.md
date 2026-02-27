@@ -140,30 +140,34 @@ Sits on top of S3 /prices/ folder. Used for historical queries and dashboard cha
 
 ---
 
-## 📊 Data Sources
+## 📊 Data Sources — FINAL ACTIVE LIST
 
-### Priority 1 — Free APIs (always prefer)
-| Source | Metals | Limit |
+> ⚠️ These are the ONLY active sources. yahoo_finance.py, ibja.py, kitco.py were removed — they were placeholder files not in sources.json.
+
+### Active Sources (in build order)
+| # | Source ID | File | Metals | Limit | Status |
+|---|---|---|---|---|---|
+| 1 | gold_api_com | gold_api_com.py | Gold, Silver, Platinum, Copper | Unlimited | ✅ Built & tested |
+| 2 | metals_dev | metals_dev.py | Gold, Silver, Platinum, Copper | 100/month | ✅ Built & tested |
+| 3 | goldapi_io | goldapi_io.py | Gold, Silver, Platinum | 100/month | ✅ Built & tested |
+| 4 | free_gold_api | free_gold_api.py | Gold (historical) | Unlimited | ❌ Disabled permanently |
+| 5 | goodreturns | goodreturns.py | Gold (city-wise INR) | Unlimited | ← BUILD NEXT |
+| 6 | moneycontrol | moneycontrol.py | Gold, Silver (MCX backup) | Unlimited | Pending |
+| 7 | rapaport | rapaport.py | Diamond (index only) | Unlimited | Pending |
+
+### Why free_gold_api is Disabled
+- Returns full dataset from 1258 AD — no date filtering supported
+- No query params like `?limit=30` or `?from=2026-01-01` work
+- Prices in GBP not USD
+- Downloading entire dataset to grab last 30 days is wasteful and slow
+- Our own S3 history will serve this need organically by Phase 2
+- sources.json updated: `enabled: false`, `health_status: disabled`
+
+### Phase 4 Paid Sources (future — not building yet)
+| Source | Cost | Why |
 |---|---|---|
-| GoldAPI.io | Gold, Silver, Platinum | 100/month |
-| Gold-API.com | Gold, Silver | Unlimited |
-| FreeGoldAPI.com | Gold (historical) | Unlimited |
-| Yahoo Finance (GC=F) | Gold Futures | Unlimited |
-| IBJA API | Gold, Silver India | Unlimited |
-
-### Priority 2 — Paid APIs
-Empty for now — placeholder exists in config
-
-### Priority 3 — Scrapers (last resort)
-| Source | Metals | Notes |
-|---|---|---|
-| Kitco.com | Gold, Silver, Platinum | USD spot |
-| Moneycontrol | Gold, Silver | MCX India rates |
-| GoodReturns.in | Gold | City-wise INR rates |
-| Rapaport | Diamond | Index only |
-
-### Key Rule
-All sources run on their own schedule independently. Priority only applies to jeweller rate recommendations — NOT to data collection. We collect from everywhere always.
+| Metals-API.com | $4.99/month | City-wise Indian prices — replaces GoodReturns scraper |
+| IBJA Official API | Contact for pricing | RBI approved benchmark — most authoritative India source |
 
 ---
 
@@ -178,6 +182,7 @@ Single `config/sources.json` file controls everything:
 - `schedule` — frequency in minutes + active hours + timezone
 - `failure_handling` — retry count + auto recovery + fallback source
 - `metals` — which metals this source covers
+- `fields_map` — maps our standard field names to API-specific field names
 
 ### Adding New Sources
 Edit sources.json only — no code changes needed.
@@ -199,13 +204,6 @@ Fail 3 → consecutive_failures = 3 → CIRCUIT BREAKER TRIPS
        → If recovered → re-enable + notify ✅
        → If still broken → stay disabled + notify again ❌
 ```
-
-### Notification Severity Levels
-- ⚠️ WARNING (1 failure) — CloudWatch log only
-- 🔶 ALERT (2 failures) — Email via SES
-- 🔴 CRITICAL (3 failures) — Email + SNS immediately
-- ✅ RECOVERY — Email "source is back"
-- 🚨 MIN SOURCES BREACHED — Email + SNS urgently
 
 ---
 
@@ -236,47 +234,29 @@ Fail 3 → consecutive_failures = 3 → CIRCUIT BREAKER TRIPS
 ```
 PRIORITY 1 — Partner Rate (Solution 2)
 → Verified rate from paying jeweller partner
-→ Show cleanly with ✅ Partner Verified badge
-
-↓ NOT AVAILABLE
 
 PRIORITY 2 — Community Rate (Solution 3)
 → Crowdsourced from users
 → Show WITH market rate alongside
-→ Give user choices of what to do next
-
-↓ NOT AVAILABLE
 
 PRIORITY 3 — Market Rate + Education (Solution 1)
 → Show official market rate for city
 → Educate on what to expect at jeweller
 → Ask user to report rate when they visit
-→ This converts to Solution 3 data over time
 ```
 
 ### Community Rate Guardrails (6 rules)
-1. **Minimum 3 unique users** — don't show until 3 different phone numbers confirm
-2. **Spread check** — spread % must be < 2% (percentage based not absolute)
-3. **Market anchor** — reject if outside ±5% of official market rate
-4. **Time decay** — reports expire after 24 hours
-5. **Reputation weighting** — proven reporters get more weight
-6. **Unique phone per report** — one report per person per jeweller
-
-### Rate Calculation
-Trimmed mean — drop highest and lowest, average the rest. Weighted by reporter reputation score.
-
-### Confidence Levels
-- ⭐⭐⭐ High — 3+ reports, spread < 0.5%
-- ⭐⭐ Medium — 3-5 reports, spread < 1%
-- ⭐ Low — don't show
+1. Minimum 3 unique users before showing
+2. Spread % must be < 2%
+3. Reject if outside ±5% of official market rate
+4. Reports expire after 24 hours
+5. Reputation weighting — proven reporters get more weight
+6. One report per person per jeweller
 
 ---
 
-## 🎮 Gamification
+## 🎮 Gamification (Phase 3)
 
-Active from Phase 3. Badges awarded via WhatsApp message.
-
-### Badges
 | Badge | Trigger |
 |---|---|
 | 🌟 First Timer | Sent first message |
@@ -287,264 +267,32 @@ Active from Phase 3. Badges awarded via WhatsApp message.
 | 🎯 Streak Master | 4 weeks consistent engagement |
 | 🙏 Festival Hero | Reported rate during festival season |
 
-### Leaderboard
-City-wise top reporters. Shown on request.
-
----
-
-## 🗓️ Festival Calendar
-
-Agent proactively messages users 7 days before each festival:
-- Akshaya Tritiya (most important gold buying day)
-- Dhanteras
-- Dussehra
-- Gudi Padwa
-- Ugadi
-- Pongal
-- Onam
-- Navratri
-- Regional wedding seasons (Feb-May and Oct-Nov peak)
-
----
-
-## 🤖 Conversation Types Handled
-
-| Type | Example | Available |
-|---|---|---|
-| Price query | "Aaj gold ka bhav?" | Phase 2 |
-| Calculator | "₹50,000 mein kitna gold?" | Phase 2 |
-| Alert setup | "₹55,000 pe batao" | Phase 2 |
-| Metal education | "22K vs 24K kya fark?" | Phase 2 |
-| Trend question | "Kya price badhega?" | Phase 2 |
-| Festival advice | "Akshaya Tritiya pe kharidun?" | Phase 2 |
-| City comparison | "Mumbai ya Chennai mein sasta?" | Phase 2 |
-| Location query | "Mere paas jewellers?" | Phase 3 |
-| Rate reporting | "GRT mein ₹57,400 hai" | Phase 3 |
-| Partner rate | "Verified jeweller rate" | Phase 4 |
-
----
-
-## 📱 Location Intelligence (Phase 3)
-
-- User shares WhatsApp location (native feature)
-- We receive lat/long coordinates
-- Google Places API finds nearby jewellers
-- Returns name, distance, rating, opening hours
-- Rate prioritiser applies Priority 1/2/3 logic per jeweller
-
 ---
 
 ## 🗺️ Phase Plan
 
-### Phase 1 — The Engine (Months 1-2)
+### Phase 1 — The Engine (Months 1-2) ← WE ARE HERE
 **Goal:** Fully automated data pipeline. No user-facing product yet.
 
-What we build:
-- sources.json config system
-- Scraper Lambda (all sources, all metals)
-- Consolidator Lambda (merge, validate, anomaly detect)
-- Circuit breaker and health tracking
-- S3 storage structure (all folders created)
-- DynamoDB tables (all tables created, most empty)
-- EventBridge hourly trigger
-- CloudWatch monitoring and alarms
-- SNS/SES failure notifications
-- Full AWS infrastructure via SAM
-- GitHub repo with complete folder structure and placeholders
-
-Success criteria:
-- Data collected every hour without failure
-- All 3 metals covered
-- 5 Indian cities covered
-- Anomalies flagged correctly
-- Zero errors in CloudWatch for 48 hours
+Status: Scraper engine complete. Building individual site scrapers now.
 
 ### Phase 2 — The Product (Months 2-3)
-**Goal:** Working WhatsApp chatbot with real users.
-
-What we build:
-- Meta WhatsApp Business API setup
-- WhatsApp Handler Lambda
-- Conversation Lambda (all conversation types)
-- Agent Brain Lambda (Claude integration, multilingual)
-- Alert Checker Lambda
-- Weekly Digest Lambda
-- Festival Advisory Lambda
-- User management (auto-create on first message)
-- Language detection and preference saving
-- Basic gamification (welcome badge, streak counter)
-
-Success criteria:
-- Bot responds in < 10 seconds
-- All 3 languages working
-- 10 real test users for 1 week
-- Zero wrong price information
+WhatsApp chatbot with real users.
 
 ### Phase 3 — The Community (Months 3-4)
-**Goal:** Crowdsourced jeweller rates, location, gamification.
-
-What we build:
-- Location Lambda (Google Places API)
-- Rate Validation Lambda (all 6 guardrails)
-- Gamification Lambda (full badge system)
-- Reputation scoring system
-- Community rate priority logic fully active
-- Leaderboard system
-
-Success criteria:
-- Location sharing working
-- Community rates showing with confidence levels
-- All 6 guardrails catching bad data
-- Badges being awarded
-- 100+ active users contributing
+Crowdsourced jeweller rates, location, gamification.
 
 ### Phase 4 — The Business (Months 5-6)
-**Goal:** Revenue, web dashboard, scale.
-
-What we build:
-- Jeweller partnership program + dashboard
-- React web dashboard (5 pages)
-- Referral program
-- Digital gold partnerships (SafeGold, Augmont)
-- Report Lambda (weekly PDF)
-- Data API Lambda (for dashboard)
-- Web Chat Lambda
-
-Success criteria:
-- 10+ paying jeweller partners
-- Web dashboard live
-- 1000+ active WhatsApp users
-- Revenue covering operational costs
+Revenue, web dashboard, scale.
 
 ---
 
-## 📁 Complete Project Folder Structure
+## 📁 Correct Project Folder Structure
+
+> ⚠️ Files NOT in this list have been removed: yahoo_finance.py, ibja.py, kitco.py
 
 ```
 gold-agent/
-├── .github/
-│   ├── workflows/
-│   │   ├── deploy.yml
-│   │   ├── test.yml
-│   │   └── lint.yml
-│   └── ISSUE_TEMPLATE/
-│       ├── bug_report.md
-│       └── feature_request.md
-├── docs/
-│   ├── architecture/
-│   │   ├── overview.md
-│   │   ├── data-flow.md
-│   │   ├── aws-services.md
-│   │   ├── phase-plan.md
-│   │   └── diagrams/
-│   ├── api/
-│   │   ├── endpoints.md
-│   │   └── whatsapp-webhooks.md
-│   ├── runbooks/
-│   │   ├── scraper-failure.md
-│   │   ├── api-quota-exceeded.md
-│   │   ├── circuit-breaker-tripped.md
-│   │   └── deployment.md
-│   └── phases/
-│       ├── phase-1-engine.md
-│       ├── phase-2-product.md
-│       ├── phase-3-community.md
-│       └── phase-4-business.md
-├── infra/
-│   ├── template.yaml
-│   ├── vpc/vpc.yaml
-│   ├── lambda/functions.yaml
-│   ├── s3/buckets.yaml
-│   ├── dynamodb/tables.yaml
-│   ├── eventbridge/rules.yaml
-│   ├── api-gateway/api.yaml
-│   ├── cloudwatch/
-│   │   ├── alarms.yaml
-│   │   └── dashboard.yaml
-│   ├── sns/topics.yaml
-│   ├── ses/email-templates.yaml
-│   ├── secrets/secrets.yaml
-│   └── iam/roles.yaml
-├── src/
-│   ├── lambdas/
-│   │   ├── scraper/
-│   │   │   ├── handler.py
-│   │   │   ├── scheduler.py
-│   │   │   ├── circuit_breaker.py
-│   │   │   ├── quota_manager.py
-│   │   │   ├── health_tracker.py
-│   │   │   ├── source_selector.py
-│   │   │   ├── parallel_runner.py
-│   │   │   ├── notifier.py
-│   │   │   └── README.md
-│   │   ├── consolidator/
-│   │   │   ├── handler.py
-│   │   │   ├── merger.py
-│   │   │   ├── validator.py
-│   │   │   ├── anomaly_detector.py
-│   │   │   ├── trimmed_mean.py
-│   │   │   ├── s3_writer.py
-│   │   │   ├── dynamo_writer.py
-│   │   │   └── README.md
-│   │   ├── agent-brain/           ← Phase 2
-│   │   ├── whatsapp-handler/      ← Phase 2
-│   │   ├── conversation/          ← Phase 2
-│   │   ├── alert-checker/         ← Phase 2
-│   │   ├── weekly-digest/         ← Phase 2
-│   │   ├── festival-advisory/     ← Phase 2
-│   │   ├── rate-validator/        ← Phase 3
-│   │   ├── location/              ← Phase 3
-│   │   ├── gamification/          ← Phase 3
-│   │   ├── report/                ← Phase 4
-│   │   ├── data-api/              ← Phase 4
-│   │   └── web-chat/              ← Phase 4
-│   ├── scrapers/
-│   │   ├── engine/
-│   │   │   ├── base_scraper.py
-│   │   │   ├── api_fetcher.py
-│   │   │   ├── html_scraper.py
-│   │   │   ├── response_parser.py
-│   │   │   ├── data_normaliser.py
-│   │   │   └── rate_limiter.py
-│   │   └── sites/
-│   │       ├── goldapi_io.py
-│   │       ├── gold_api_com.py
-│   │       ├── free_gold_api.py
-│   │       ├── yahoo_finance.py
-│   │       ├── ibja.py
-│   │       ├── kitco.py
-│   │       ├── moneycontrol.py
-│   │       ├── goodreturns.py
-│   │       └── rapaport.py
-│   ├── shared/
-│   │   ├── db/
-│   │   │   ├── dynamo_client.py
-│   │   │   ├── dynamo_reader.py
-│   │   │   ├── dynamo_writer.py
-│   │   │   ├── s3_client.py
-│   │   │   ├── s3_reader.py
-│   │   │   └── s3_writer.py
-│   │   ├── models/
-│   │   │   ├── price.py
-│   │   │   ├── source.py
-│   │   │   ├── user.py
-│   │   │   ├── alert.py
-│   │   │   ├── jeweller.py
-│   │   │   ├── community_rate.py
-│   │   │   └── badge.py
-│   │   ├── notifications/
-│   │   │   ├── sns_client.py
-│   │   │   ├── ses_client.py
-│   │   │   ├── whatsapp_client.py
-│   │   │   └── notification_formatter.py
-│   │   └── utils/
-│   │       ├── logger.py
-│   │       ├── date_helper.py
-│   │       ├── currency_formatter.py
-│   │       ├── metal_helper.py
-│   │       ├── config_loader.py
-│   │       └── error_handler.py
-│   └── frontend/                  ← Phase 4
 ├── config/
 │   ├── sources.json
 │   ├── festivals.json
@@ -553,40 +301,53 @@ gold-agent/
 │   ├── alerts.json
 │   ├── badges.json
 │   └── languages.json
+├── src/
+│   ├── __init__.py
+│   ├── scrapers/
+│   │   ├── __init__.py
+│   │   ├── engine/
+│   │   │   ├── __init__.py
+│   │   │   ├── base_scraper.py
+│   │   │   ├── api_fetcher.py
+│   │   │   ├── html_scraper.py
+│   │   │   ├── data_normaliser.py
+│   │   │   └── rate_limiter.py
+│   │   └── sites/
+│   │       ├── __init__.py
+│   │       ├── gold_api_com.py      ✅ built and tested
+│   │       ├── metals_dev.py        ✅ built and tested
+│   │       ├── goldapi_io.py        ✅ built and tested
+│   │       ├── free_gold_api.py     ❌ disabled
+│   │       ├── goodreturns.py       ← build next
+│   │       ├── moneycontrol.py      pending
+│   │       └── rapaport.py          pending
+│   ├── lambdas/
+│   │   ├── scraper/
+│   │   ├── consolidator/
+│   │   ├── agent-brain/           ← Phase 2
+│   │   ├── whatsapp-handler/      ← Phase 2
+│   │   └── ...
+│   └── shared/
+│       ├── db/
+│       ├── models/
+│       ├── notifications/
+│       └── utils/
 ├── tests/
-│   ├── unit/
-│   │   ├── scrapers/
-│   │   ├── lambdas/
-│   │   └── shared/
-│   ├── integration/
-│   └── fixtures/
-│       ├── mock_goldapi_response.json
-│       ├── mock_kitco_html.html
-│       └── mock_dynamo_tables.json
-├── scripts/
-│   ├── setup/
-│   │   ├── setup_local.sh
-│   │   ├── setup_aws.sh
-│   │   └── create_secrets.sh
-│   ├── deploy/
-│   │   ├── deploy_infra.sh
-│   │   ├── deploy_lambdas.sh
-│   │   └── deploy_frontend.sh
-│   ├── maintenance/
-│   │   ├── check_source_health.sh
-│   │   ├── reset_quota.sh
-│   │   └── enable_source.sh
-│   └── seed/
-│       └── seed_test_data.py
+│   └── unit/
+│       └── scrapers/
+│           ├── test_gold_api_com.py    ✅
+│           ├── test_metals_dev.py      ✅
+│           ├── test_goldapi_io.py      ✅
+│           ├── test_goodreturns.py     ← build next
+│           ├── test_moneycontrol.py    pending
+│           └── test_rapaport.py       pending
+├── setup.py
+├── requirements.txt
+├── .env
 ├── .env.example
-├── .gitignore
-├── .pylintrc
-├── README.md
-├── CONTRIBUTING.md
-├── CHANGELOG.md
-├── LICENSE
-├── CONTEXT.md                     ← THIS FILE
-└── requirements.txt
+├── .gitignore                     (includes .DS_Store)
+├── CONTEXT.md
+└── README.md
 ```
 
 ---
@@ -595,111 +356,185 @@ gold-agent/
 
 | Layer | Technology |
 |---|---|
-| Language | Python 3.10+ |
+| Language | Python 3.12 (Mac) |
 | AI Brain | Anthropic Claude API (claude-sonnet-4-6) |
-| Infrastructure | AWS SAM (Serverless Application Model) |
+| Infrastructure | AWS SAM |
 | Primary Channel | Meta WhatsApp Business Cloud API |
-| Scraping | requests + BeautifulSoup (Lambda friendly) |
+| Scraping | requests + BeautifulSoup |
 | Frontend | React (Phase 4) |
 | Package Manager | pip + venv |
-| Code Style | pylint |
-| Version Control | GitHub (open source, monorepo) |
+| Version Control | GitHub (SSH keys) |
+| Region | ap-south-1 (Mumbai) |
 
 ---
 
-## 💻 Local Dev Setup (Mac)
+## 💻 Local Dev Setup
 
 ```bash
-# Clone repo
-git clone https://github.com/[username]/gold-agent
-cd gold-agent
-
-# Create virtual environment
-python3 -m venv venv
+# Always activate venv first
 source venv/bin/activate
 
-# Install dependencies
-pip install -r requirements.txt
+# Always run scripts from project root
+python tests/unit/scrapers/test_gold_api_com.py
 
-# Copy env file and fill in keys
-cp .env.example .env
-
-# Configure AWS CLI
-aws configure
-# Region: ap-south-1 (Mumbai)
+# Never run from inside src/ or tests/ folders
 ```
 
-Required in .env:
-- ANTHROPIC_API_KEY
-- AWS_ACCESS_KEY_ID
-- AWS_SECRET_ACCESS_KEY
-- GOLDAPI_IO_KEY
-- WHATSAPP_TOKEN (Phase 2)
-- WHATSAPP_PHONE_ID (Phase 2)
-- GOOGLE_PLACES_KEY (Phase 3)
+### Python Package Setup (already done — do not redo)
+- `setup.py` exists at project root
+- `pip install -e .` already run
+- All `__init__.py` files exist in src/, src/scrapers/, src/scrapers/engine/, src/scrapers/sites/
+- Import pattern: `from src.scrapers.engine.base_scraper import BaseScraper`
+- File path pattern: always use relative paths from project root e.g. `open("config/sources.json")`
 
 ---
 
-## 🧑‍💻 Developer Info
+## 🔑 Environment Variables
 
-- OS: Mac
-- Python: Intermediate
-- AWS: IAM user created under wife's root account
-- AWS Region: ap-south-1 (Mumbai — closest to India)
-- GitHub: Account exists
-- VS Code: Installed
+All API keys are in `.env` at project root. Every scraper and test file loads this automatically.
+
+```
+METALS_DEV_API_KEY=...
+GOLDAPI_IO_KEY=...
+GOLD_API_COM_KEY=...    (not needed — no auth)
+```
+
+Phase 2+:
+```
+ANTHROPIC_API_KEY=...
+WHATSAPP_TOKEN=...
+WHATSAPP_PHONE_ID=...
+GOOGLE_PLACES_KEY=...
+```
 
 ---
 
-## 📍 Current Status
+## 📐 Code Patterns — Follow These in Every File
 
-**Phase:** Phase 1 — Scraper engine complete — ready to build site scrapers
+### 1. Every scraper and test file starts with
+```python
+from dotenv import load_dotenv
+load_dotenv()
+```
+This is the FIRST import in every file. Non-negotiable.
 
-**Last Completed:**
-- Virtual environment created and configured
-- requirements.txt filled with all dependencies
-- VS Code configured to use venv Python interpreter
-- Scraper engine built — 4 files complete:
-  - base_scraper.py — foundation class
-  - api_fetcher.py — REST API handler
-  - html_scraper.py — HTML scraper handler
-  - data_normaliser.py — standard format converter
-- metals.json updated — price ranges moved to config
-- Everything pushed to GitHub
+### 2. Every scraper inherits from BaseScraper
+```python
+class MySourceScraper(BaseScraper):
+    def __init__(self, source_config: dict):
+        super().__init__(source_config)
+        self.fetcher = APIFetcher(source_config)  # for API sources
 
-**Next Immediate Task:**
-Build individual site scrapers — one at a time.
+    def fetch(self) -> list:
+        # implement this — return list of price records
+```
 
-Start in this exact order:
+### 3. Standard price record format (from build_price_record)
+```json
+{
+    "metal": "gold",
+    "price_usd": 5226.19,
+    "currency": "USD",
+    "price_inr": null,
+    "unit": "troy_ounce",
+    "source_id": "goldapi_io",
+    "source_name": "GoldAPI.io",
+    "timestamp": "2026-02-27T10:00:00Z",
+    "extra": {}
+}
+```
 
-Step 1 — src/scrapers/sites/gold_api_com.py
-- Simplest source — no auth, unlimited, clean JSON
-- Test immediately after building
-- Wait for confirmation before next
+### 4. price_inr is always null from scrapers
+INR conversion happens in data_normaliser / consolidator — NOT in individual scrapers. Never calculate INR inside a scraper.
 
-Step 2 — src/scrapers/sites/metals_dev.py
-- Most complex — multiple metals, INR rate, MCX, IBJA
-- Update INR rate in data_normaliser after each run
+### 5. One metal failure never stops others
+Always wrap per-metal logic in try/except and continue on failure.
 
-Step 3 — src/scrapers/sites/goldapi_io.py
-- Karat prices — header auth
-- Map price_gram_24k and price_gram_22k correctly
+### 6. Test files always follow this structure
+- TEST 1 — Load sources.json
+- TEST 2 — Find source config block
+- TEST 3 — Check API key is set (if applicable)
+- TEST 4 — Initialise scraper
+- TEST 5 — Run scraper (live API call)
+- TEST 6 — Check all metals returned
+- TEST 7+ — Source-specific validations
+- Final TEST — Print full JSON output for visual inspection
 
-Step 4 — src/scrapers/sites/free_gold_api.py
-- Historical only — different handling
-- Returns array not single record
+### 7. Always run tests from project root
+```bash
+python tests/unit/scrapers/test_xyz.py
+```
 
-Step 5 — src/scrapers/sites/goodreturns.py
-- HTML scraper — city wise INR rates
-- Use fetch_multiple for 8 cities
+---
 
-Step 6 — src/scrapers/sites/moneycontrol.py
-- HTML scraper — MCX backup
+## 🔍 What Each Built Scraper Does
 
-Step 7 — src/scrapers/sites/rapaport.py
-- HTML scraper — diamond index only — weekly
+### gold_api_com.py
+- No auth — unlimited calls
+- 4 metals: gold, silver, platinum, copper
+- Symbols: XAU, XAG, XPT, HG
+- One API call per metal (4 calls total per run)
+- No extra fields beyond price
 
-Do NOT skip ahead. Build and test one at a time.
+### metals_dev.py
+- Auth: query param — `?api_key=KEY`
+- 4 metals: gold, silver, platinum, copper
+- **ONE API call for all metals** — most efficient source
+- Provides INR exchange rate — stored in `scraper.inr_rate`
+- INR rate formula: `currencies.INR = 0.011` means `1 USD = 1/0.011 = ₹91`
+- Copper price is per POUND in API — converted to troy ounce
+  - Conversion: `price_per_toz = price_per_lb / 0.0685714`
+  - Both stored: `price_usd` = converted toz, `extra.price_per_pound` = original
+  - `extra.conversion_factor` = 0.0685714 (makes math transparent)
+- Gold extra{}: mcx_gold, mcx_gold_am, mcx_gold_pm, ibja_gold, lbma_gold_am, lbma_gold_pm
+- Silver extra{}: mcx_silver, mcx_silver_am, mcx_silver_pm, lbma_silver
+- Platinum extra{}: lbma_platinum_am, lbma_platinum_pm
+
+### goldapi_io.py
+- Auth: header — `x-access-token: KEY`
+- 3 metals: gold, silver, platinum (NO copper)
+- One API call per metal (3 calls total per run)
+- **Unique value: karat-wise gram prices** — no other source gives this
+- Standard karats (24K, 22K, 18K) → stored in `extra.karats{}`
+- Extended karats (21K, 20K, 16K, 14K, 10K) → stored in `extra.extended_karats{}`
+- Market data in extra{}: ask, bid, change, change_percent, prev_close, open, high, low
+
+---
+
+## 🌆 goodreturns.py — What Next Chat Must Build
+
+### What GoodReturns Gives Us
+City-wise gold rates in INR for 8 Indian cities:
+- Mumbai, Delhi, Chennai, Hyderabad, Bangalore, Kolkata, Ahmedabad, Pune
+- 22K and 24K prices per 10 grams
+- This is the most important Indian-specific data source
+
+### How It's Different From API Scrapers
+GoodReturns is an HTML scraper — not an API. It works like this:
+```
+Call URL → Get full HTML page → Find price table → 
+Extract row → Extract cell → Clean text → Build record
+```
+
+### Key Facts
+- Uses `HTMLScraper` from engine (not APIFetcher)
+- One URL per city — 8 calls total per run
+- URL pattern: `https://www.goodreturns.in/gold-rates-in-{city}.html`
+- Auth: none needed
+- Returns prices in INR directly — no USD conversion needed
+- HTML scraping is fragile — if site redesigns, scraper breaks (handled by circuit breaker)
+
+### What New Chat Must Do First
+Before writing any code:
+1. Open `https://www.goodreturns.in/gold-rates-in-mumbai.html` in browser
+2. Right-click on price table → Inspect Element
+3. Find the HTML tag and class/id of the price table
+4. Find what a row looks like inside it
+5. Share the HTML structure with Claude
+6. Then Claude writes the scraper around real structure
+
+### cities.json
+Check `config/cities.json` for the exact city IDs and URL slugs we use. The URL slug may differ from our internal city ID (e.g. internal: `bengaluru`, URL: `bangalore`).
 
 ---
 
@@ -720,19 +555,62 @@ Do NOT skip ahead. Build and test one at a time.
 | Commercial model | Free first, partnerships later | Build users before monetising |
 | Code philosophy | One file one responsibility | Readable, testable, maintainable |
 | Version control | SSH keys on Mac | No username/password needed |
-| Project structure | All placeholder files created upfront | See full shape of project from day one |
+| Project structure | All placeholder files created upfront | See full shape from day one |
 | Metals list | Gold, Silver, Platinum, Copper, Diamond | Copper added for Indian festival context |
 | Yahoo Finance | Dropped | No clean REST API, redundant |
-| MetalpriceAPI.com | Dropped for now | Free tier = 24hr delay |
+| ibja.py | Dropped placeholder | Was a scraper placeholder — Phase 4 has paid IBJA API |
+| kitco.py | Dropped | Removed — not in sources.json |
+| MetalpriceAPI.com | Dropped | Free tier = 24hr delay |
 | Metals-API.com | Future Phase 4 | Paid only — add when revenue starts |
 | GoldAPI.io schedule | Twice daily | Stay within 100/month free limit |
 | Metals.Dev schedule | Twice daily | Stay within 100/month free limit |
 | Price ranges | Stored in metals.json | Not hardcoded — change without code edits |
-| Karat prices | Calculate from purity if not provided | Works for all sources automatically |
-| INR conversion | Stored from Metals.Dev | Single source of truth for exchange rate |
+| INR conversion | From Metals.Dev only | Single source of truth for exchange rate |
 | Timestamp formats | Normalised to ISO 8601 UTC | Consistent across all sources |
+| Python package | setup.py + pip install -e . | Clean imports, no sys.path hacks |
+| dotenv loading | load_dotenv() in every file | No manual export needed — works automatically |
+| Copper unit | Convert to troy ounce | System-wide consistency |
+| Copper original price | Stored in extra{} | Never throw data away |
+| LBMA prices | Stored in extra{} | Valuable for Phase 2 agent brain |
+| Karat prices | Standard 3 at top, extended 5 in extra{} | Consistency without losing data |
+| free_gold_api | Disabled permanently | No date filtering — 1258 AD dataset not practical |
 
 ---
 
-*Last updated: Session 4 — Scraper engine complete, all 4 engine files built and pushed*
+## 🧑‍💻 Developer Info
+
+- Name: Manikanta
+- OS: Mac
+- Python: 3.12
+- Python level: Intermediate
+- AWS: IAM user created under wife's root account
+- AWS Region: ap-south-1 (Mumbai)
+- GitHub: Account exists, SSH keys configured
+- VS Code: Installed, configured to use venv
+
+---
+
+## 📍 Current Status
+
+**Phase:** Phase 1 — Building individual site scrapers
+
+**Scrapers Complete:**
+- ✅ gold_api_com.py — built, tested, committed
+- ✅ metals_dev.py — built, tested, committed
+- ✅ goldapi_io.py — built, tested, committed
+- ❌ free_gold_api.py — disabled permanently (see reason above)
+
+**Next Immediate Task:**
+Build `goodreturns.py` — HTML scraper for city-wise INR gold rates.
+
+**Before writing goodreturns.py:**
+Must inspect the live HTML of `https://www.goodreturns.in/gold-rates-in-mumbai.html` first and share the table HTML structure. Do NOT write any code until the real HTML structure is confirmed.
+
+**After goodreturns.py:**
+- moneycontrol.py — HTML scraper, MCX backup
+- rapaport.py — HTML scraper, diamond index, weekly only
+
+---
+
+*Last updated: Session 5 — gold_api_com, metals_dev, goldapi_io all complete. free_gold_api disabled. goodreturns.py is next.*
 *Update this file at the end of every working session*
