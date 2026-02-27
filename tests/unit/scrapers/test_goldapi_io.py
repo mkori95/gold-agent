@@ -1,27 +1,31 @@
 """
-test_gold_api_com.py
+test_goldapi_io.py
 
-Test script for the Gold-API.com scraper.
+Test script for the GoldAPI.io scraper.
 
 IMPORTANT — Always run this from project root:
-    python tests/unit/scrapers/test_gold_api_com.py
+    python tests/unit/scrapers/test_goldapi_io.py
 
 What this tests:
 1. sources.json loads correctly
-2. gold_api_com config block is found
-3. Scraper initialises without errors
-4. All 4 metals return a price
-5. Prices are within valid ranges
-6. Price records have the correct standard format
+2. goldapi_io config block is found
+3. GOLDAPI_IO_KEY is set in environment
+4. Scraper initialises without errors
+5. All 3 metals return a price (gold, silver, platinum)
+6. Standard karats (24K, 22K, 18K) are captured
+7. Extended karats (21K, 20K, 16K, 14K, 10K) are in extra{}
+8. Market data (ask, bid, change) is captured
+9. All records have correct standard format
 """
 
 from dotenv import load_dotenv
 load_dotenv()
 
 import json
+import os
 import sys
 import logging
-from src.scrapers.sites.gold_api_com import GoldApiComScraper
+from src.scrapers.sites.goldapi_io import GoldApiIoScraper
 
 # ============================================================
 # Set up logging so we can see what the scraper is doing
@@ -75,43 +79,60 @@ except json.JSONDecodeError as e:
     failed(f"sources.json is not valid JSON — {e}")
 
 # ============================================================
-# TEST 2 — Find gold_api_com config
+# TEST 2 — Find goldapi_io config
 # ============================================================
-section("TEST 2 — Find gold_api_com config block")
+section("TEST 2 — Find goldapi_io config block")
 
 source_config = None
 for source in sources_data["sources"]:
-    if source["id"] == "gold_api_com":
+    if source["id"] == "goldapi_io":
         source_config = source
         break
 
 if source_config:
-    passed("gold_api_com config found")
+    passed("goldapi_io config found")
     passed(f"Metals in config: {source_config['metals']}")
     passed(f"Enabled: {source_config['enabled']}")
-    passed(f"Auth required: {source_config['auth']['required']}")
+    passed(f"Auth type: {source_config['auth']['type']}")
+    passed(f"Auth header: {source_config['auth']['header_name']}")
 else:
-    failed("gold_api_com not found in sources.json")
+    failed("goldapi_io not found in sources.json")
 
 # ============================================================
-# TEST 3 — Initialise the scraper
+# TEST 3 — Check API key is set
 # ============================================================
-section("TEST 3 — Initialise scraper")
+section("TEST 3 — Check GOLDAPI_IO_KEY is set")
+
+api_key = os.environ.get("GOLDAPI_IO_KEY")
+
+if api_key:
+    passed(f"GOLDAPI_IO_KEY found — {api_key[:6]}...")
+else:
+    failed(
+        "GOLDAPI_IO_KEY not set — "
+        "add it to your .env file"
+    )
+
+# ============================================================
+# TEST 4 — Initialise the scraper
+# ============================================================
+section("TEST 4 — Initialise scraper")
 
 try:
-    scraper = GoldApiComScraper(source_config)
+    scraper = GoldApiIoScraper(source_config)
     passed(f"Scraper initialised — source_id: {scraper.source_id}")
     passed(f"Metals to fetch: {scraper.metals}")
-    passed(f"Metals config loaded: {list(scraper.metals_config.keys())}")
+    passed(f"Standard karats: {scraper.STANDARD_KARATS}")
+    passed(f"Extended karats: {scraper.EXTENDED_KARATS}")
 except Exception as e:
     failed(f"Scraper failed to initialise — {e}")
 
 # ============================================================
-# TEST 4 — Run the scraper
+# TEST 5 — Run the scraper
 # ============================================================
-section("TEST 4 — Run scraper (live API call)")
+section("TEST 5 — Run scraper (live API call)")
 
-print("\n  Calling Gold-API.com now — this makes real API calls...")
+print("\n  Calling GoldAPI.io now — this uses 3 of your 100 monthly calls...")
 print()
 
 result = scraper.run()
@@ -126,9 +147,9 @@ else:
     failed(f"Unexpected status: {result['status']}")
 
 # ============================================================
-# TEST 5 — Check we got all 4 metals
+# TEST 6 — Check all 3 metals returned
 # ============================================================
-section("TEST 5 — Check all 4 metals returned")
+section("TEST 6 — Check all 3 metals returned")
 
 metals_returned = [r["metal"] for r in result["data"]]
 expected_metals = source_config["metals"]
@@ -140,9 +161,63 @@ for metal in expected_metals:
         failed(f"Metal MISSING: {metal}")
 
 # ============================================================
-# TEST 6 — Check each record has correct format
+# TEST 7 — Check standard karats for each metal
 # ============================================================
-section("TEST 6 — Validate record format for each metal")
+section("TEST 7 — Check standard karats (24K, 22K, 18K)")
+
+for record in result["data"]:
+    metal = record["metal"]
+    extra = record.get("extra", {})
+    karats = extra.get("karats", {})
+
+    print(f"\n  --- {metal.upper()} karats ---")
+
+    for karat in ["24K", "22K", "18K"]:
+        if karat in karats:
+            passed(f"{karat} gram price: ${karats[karat]}")
+        else:
+            failed(f"{karat} gram price MISSING for {metal}")
+
+# ============================================================
+# TEST 8 — Check extended karats in extra{}
+# ============================================================
+section("TEST 8 — Check extended karats in extra{}")
+
+for record in result["data"]:
+    metal = record["metal"]
+    extra = record.get("extra", {})
+    extended = extra.get("extended_karats", {})
+
+    print(f"\n  --- {metal.upper()} extended karats ---")
+
+    for karat in ["21K", "20K", "16K", "14K", "10K"]:
+        if karat in extended:
+            passed(f"{karat} gram price preserved: ${extended[karat]}")
+        else:
+            failed(f"{karat} gram price MISSING from extended_karats for {metal}")
+
+# ============================================================
+# TEST 9 — Check market data in extra{}
+# ============================================================
+section("TEST 9 — Check market data (ask, bid, change)")
+
+for record in result["data"]:
+    metal = record["metal"]
+    extra = record.get("extra", {})
+
+    print(f"\n  --- {metal.upper()} market data ---")
+
+    for field in ["ask", "bid", "change", "change_percent",
+                  "prev_close_price", "high_price", "low_price"]:
+        if extra.get(field) is not None:
+            passed(f"{field}: {extra[field]}")
+        else:
+            failed(f"Market data field MISSING: {field} for {metal}")
+
+# ============================================================
+# TEST 10 — Validate standard record format
+# ============================================================
+section("TEST 10 — Validate record format for each metal")
 
 for record in result["data"]:
     metal = record["metal"]
@@ -156,11 +231,11 @@ for record in result["data"]:
 
     price = record["price_usd"]
     if isinstance(price, (int, float)) and price > 0:
-        passed(f"Price is valid positive number: ${price:,.4f}")
+        passed(f"Price is valid: ${price:,.4f}")
     else:
         failed(f"Price is invalid: {price}")
 
-    if record["source_id"] == "gold_api_com":
+    if record["source_id"] == "goldapi_io":
         passed(f"source_id correct: {record['source_id']}")
     else:
         failed(f"source_id wrong: {record['source_id']}")
@@ -170,15 +245,10 @@ for record in result["data"]:
     else:
         failed(f"Unit wrong: {record['unit']}")
 
-    if "extra" in record:
-        passed(f"Extra fields present: {list(record['extra'].keys())}")
-    else:
-        failed("Extra field missing from record")
-
 # ============================================================
-# TEST 7 — Print full output for visual inspection
+# TEST 11 — Print full output for visual inspection
 # ============================================================
-section("TEST 7 — Full result output")
+section("TEST 11 — Full result output")
 
 print()
 print(json.dumps(result, indent=2))
@@ -188,6 +258,6 @@ print(json.dumps(result, indent=2))
 # ============================================================
 section("ALL TESTS PASSED ✅")
 print()
-print("  Gold-API.com scraper is working correctly.")
-print("  Safe to proceed to metals_dev.py")
+print("  GoldAPI.io scraper is working correctly.")
+print("  Safe to proceed to free_gold_api.py")
 print()

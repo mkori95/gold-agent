@@ -151,8 +151,8 @@
       "url": "https://freegoldapi.com",
       "type": "api",
       "priority": 1,
-      "enabled": true,
-      "health_status": "healthy",
+      "enabled": false,
+      "health_status": "disabled",
       "consecutive_failures": 0,
       "metals": ["gold"],
       "endpoints": {
@@ -185,7 +185,7 @@
         "price": "price",
         "source": "source"
       },
-      "notes": "Historical data only — updated daily at 6AM UTC. Run once weekly. Used in Phase 2 for trend context."
+      "notes": "No date filtering supported — returns full dataset from 1258 AD. Not practical. Own S3 history will serve this need by Phase 2."
     },
     {
       "id": "goodreturns",
