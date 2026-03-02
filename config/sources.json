@@ -198,7 +198,7 @@
       "consecutive_failures": 0,
       "metals": ["gold", "silver"],
       "endpoints": {
-        "city_rates": "/gold-rates-in-{city}.html"
+        "city_rates": "/gold-rates/{city}.html"
       },
       "auth": {
         "required": false,
@@ -225,15 +225,20 @@
       },
       "cities": [
         "mumbai", "delhi", "chennai", "hyderabad",
-        "bangalore", "kolkata", "ahmedabad", "pune"
+        "bangalore", "kolkata", "ahmedabad", "pune",
+        "jaipur", "lucknow", "kerala", "coimbatore",
+        "madurai", "visakhapatnam", "vijayawada", "surat",
+        "nagpur", "nashik", "chandigarh", "bhubaneswar",
+        "patna", "vadodara", "rajkot", "mangalore",
+        "mysore", "salem", "trichy", "ayodhya"
       ],
       "fields_map": {
         "city": "city",
-        "price_22k": "price_22k",
-        "price_24k": "price_24k",
-        "date": "date"
+        "price_24k": "24K-price",
+        "price_22k": "22K-price",
+        "price_18k": "18K-price"
       },
-      "notes": "Primary source for city-wise INR rates. Scrape politely with 5 second delay between cities. Fallback to Moneycontrol if down."
+      "notes": "Primary source for city-wise INR rates. 28 cities covered. Prices are per gram in INR — not troy ounce. Scrape politely with 5 second delay between cities. Fallback to Moneycontrol if down."
     },
     {
       "id": "moneycontrol",

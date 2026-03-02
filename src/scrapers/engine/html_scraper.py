@@ -5,7 +5,7 @@ Handles all HTML scraping for the Gold Agent scraper engine.
 Used by all scraper-type sources (GoodReturns.in, Moneycontrol etc)
 
 This class:
-- Downloads raw HTML pages using requests
+- Downloads raw HTML pages using curl_cffi (Chrome TLS impersonation)
 - Parses HTML using BeautifulSoup
 - Handles anti-scraping measures politely
 - Adds delays between requests to avoid being blocked
@@ -14,9 +14,17 @@ This class:
 It does NOT know anything about gold prices specifically.
 Individual site scrapers use this to get parsed HTML and then
 find the specific tags they need.
+
+Why curl_cffi instead of requests?
+    GoodReturns.in (and many Indian sites) are behind Cloudflare Bot
+    Management. Standard requests sends a Python TLS fingerprint that
+    Cloudflare detects and blocks with 403. curl_cffi impersonates
+    Chrome's exact TLS handshake — Cloudflare sees a real browser.
+    API is identical to requests — only the import and impersonate
+    parameter change. All other scrapers benefit automatically.
 """
 
-import requests
+from curl_cffi import requests
 import logging
 import time
 import random
@@ -105,7 +113,8 @@ class HTMLScraper:
                 url,
                 headers=headers,
                 params=params or {},
-                timeout=self.timeout
+                timeout=self.timeout,
+                impersonate="chrome120"   # Mimic Chrome TLS fingerprint — bypasses Cloudflare
             )
 
             # Handle HTTP error status codes
@@ -205,7 +214,13 @@ class HTMLScraper:
             "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
-            "Cache-Control": "max-age=0"
+            "Cache-Control": "max-age=0",
+            # Sec-Fetch headers — present in every real Chrome request
+            # Cloudflare checks for these — missing = bot signal
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1"
         }
 
         # Merge in any extra headers
@@ -244,7 +259,7 @@ class HTMLScraper:
     # ============================================================
     # Handle HTTP error status codes
     # ============================================================
-    def _handle_http_errors(self, response: requests.Response) -> None:
+    def _handle_http_errors(self, response) -> None:
         """
         Checks the HTTP response status code and raises
         meaningful errors for common failure cases.
