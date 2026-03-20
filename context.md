@@ -1036,6 +1036,48 @@ chandigarh, bhubaneswar, patna, vadodara, rajkot, mangalore,
 mysore, salem, trichy, ayodhya
 ```
 
+### consolidator/ (Phase 1 — COMPLETE)
+ 
+**Build order and responsibility:**
+ 
+| File | Responsibility | Dependencies |
+|---|---|---|
+| trimmed_mean.py | Consensus math — trimmed mean algorithm | None — pure math |
+| anomaly_detector.py | Price range validation against metals.json | metals.json only — no scraper engine |
+| validator.py | Scraper result structure validation | None |
+| merger.py | Orchestrates anomaly detection + trimmed mean, builds metals dict | AnomalyDetector, TrimmedMean |
+| dynamo_writer.py | Writes snapshot to DynamoDB (stub) | None |
+| s3_writer.py | Writes snapshot to S3 (stub) | None |
+| consolidator.py | Main pipeline orchestrator | All of the above + all scrapers |
+| handler.py | Thin Lambda entry point | Consolidator |
+ 
+**INR rate flow:**
+```
+MetalsDevScraper.run() → scraper.inr_rate stored on instance
+→ consolidator._run_scrapers() extracts it via getattr()
+→ passed explicitly to merger.merge(results, inr_rate=x)
+→ merger calculates usd_to_inr = 1 / inr_rate
+→ applied to all metal price_inr calculations
+```
+ 
+**GoodReturns routing:**
+```
+GoodReturns records (unit == "gram")
+→ merger._extract_city_rates() picks them up
+→ go directly into city_rates{} on the snapshot
+→ NEVER enter trimmed mean calculation
+→ NEVER in source_prices{}
+```
+ 
+**Karat price priority:**
+```
+GoldAPI.io provides karats → use directly (per gram USD)
+GoldAPI.io missing/failed → calculate from purity ratios
+    24K = consensus_price × 0.9999
+    22K = consensus_price × 0.9166
+    18K = consensus_price × 0.7500
+```
+
 ---
 
 ## 🌐 html_scraper.py — Cloudflare Bypass
@@ -1089,7 +1131,21 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 | Trimmed mean for 3 sources | Same trim rule as 4+ | Simpler — one consistent rule, math is identical to median |
 | Validated source count | Count post-anomaly-detection only | Prevents false high confidence from rejected prices |
 | Spread thresholds | <1% normal, 1-2% warn, >2% flag | Catches diverging sources without false positives |
- 
+| Claude Code | Not using — requires paid plan ($20/month Pro minimum) | Free plan has no Claude Code access. Will revisit when Phase 2 starts and iteration loops become intense enough to justify cost. |
+| OpenClaw | Not using for Gold Agent development | OpenClaw is a personal assistant tool — not a dev tool. Not relevant to building Gold Agent. Claude Code is the right tool when needed. |
+| VS Code + Claude | No official free integration available | Official Claude VS Code extension requires paid plan. Gemini workaround exists but Gemini is not Claude — not worth it for this project. |
+| Development workflow | Claude.ai chat + manual copy to VS Code | Working well. Session by session, explain → decide → code. Better for learning and understanding every decision. |
+| Consolidator build order | trimmed_mean → anomaly_detector → validator → merger → writers → consolidator → handler | Each file depends on the previous. Build small, test small, integrate at the end. |
+| Consolidator test strategy | Unit tests with mock data first, end-to-end after all files done | Avoids API calls during development. Faster feedback loop. End-to-end only when all pieces are ready. |
+| AnomalyDetector independence | Standalone — reads metals.json directly, no dependency on BaseScraper | Consolidator layer must not depend on scraper engine layer. Clean separation. Easier to test. No circular dependencies. |
+| TrimmedMean class | Class (Option B) not standalone function | Consistent with OOP pattern used across entire project — BaseScraper, APIFetcher, HTMLScraper, DataNormaliser all classes. |
+| INR rate passing to Merger | Caller passes explicitly: merger.merge(results, inr_rate=x) | Cleaner than merger extracting from results. Consolidator owns orchestration, merger owns merging. Easier to test with mock data. |
+| Fixture usage | mock_goldapi_response.json used in consolidator test | Large realistic API responses stored in fixtures rather than cluttering test files with inline data. |
+| mock_kitco_html.html | Deleted | Kitco dropped as source. Empty fixture referencing unused source. |
+| consolidator/README.md | Deleted | Empty placeholder. Real docs live in docs/architecture/consensus-logic.md. |
+| Project cleanliness | rate_limiter.py + response_parser.py kept empty | Intentional placeholders. Rate limiting in sources.json config. Response parsing in individual scrapers. |
+| urllib3 warning | Ignored for now | RequestsDependencyWarning from requests library — harmless, everything works. Fix later with pip install urllib3==2.2.3 if needed. |
+| GoodReturns price_usd | Always null — expected and correct | GoodReturns gives INR only. price_usd=None by design. These records go to city_rates{} not consensus. |
 ---
 
 ## 🧑‍💻 Developer Info
@@ -1152,6 +1208,39 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 ### Documentation — Session 9
 - ✅ docs/architecture/consensus-logic.md — full consensus logic documented
  
+
+## 🔑 Key Technical Decisions Made in Session 9
+ 
+### Consolidator Architecture
+- Built file by file — each with its own unit test before moving to next
+- AnomalyDetector is completely standalone — no scraper engine dependency
+- TrimmedMean is a class — consistent with rest of project OOP pattern
+- INR rate passed explicitly from consolidator to merger — not extracted inside merger
+- Merger orchestrates AnomalyDetector + TrimmedMean — does not duplicate their logic
+ 
+### Testing Strategy
+- Unit tests use patch.object to mock _run_scrapers — zero live API calls
+- Fixtures used for large realistic responses (GoldAPI.io)
+- End-to-end test runs all live scrapers — used only after all unit tests pass
+- End-to-end returned status 200 with real prices ✅
+ 
+### Consensus Logic Finalised
+- 3+ sources: always trim highest + lowest, average rest (same rule as 4+)
+- Source count = validated sources after anomaly detection — not total sources run
+- Spread thresholds: <1% normal, 1-2% warn, >2% flag in snapshot
+- GoodReturns excluded from consensus — different unit, currency, price type
+ 
+### Tools Decision
+- Not using Claude Code (requires paid plan) — revisit at Phase 2
+- Not using OpenClaw — personal assistant tool, not dev tool
+- Current workflow (Claude.ai chat + manual VS Code) working well
+- Will upgrade to Claude Pro ($20/month) when Phase 2 starts
+ 
+### AWS Approach Finalised
+- Terraform for infrastructure (VPC, DynamoDB, S3, IAM, EventBridge, SNS, SES)
+- SAM for Lambda packaging and deployment only
+- AWS CLI not yet installed — first task in AWS session
+- Terraform beginner — will be guided step by step
 ---
  
 ### Next Immediate Tasks
