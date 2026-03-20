@@ -253,40 +253,75 @@ Stored in DynamoDB `quota_tracker` table.
 ---
 
 ### 4. Price Consensus Logic (Trimmed Mean)
-
+ 
 **Step by step:**
 ```
 Step 1  →  Collect all prices for a metal from all active sources
 Step 2  →  Run anomaly detection — reject any price outside metals.json range
-Step 3  →  Sort prices lowest to highest
-Step 4  →  Drop the single highest and single lowest (trim outliers)
-Step 5  →  Average the remaining prices
-Step 6  →  That average = consensus price
+Step 3  →  Count VALIDATED sources only (sources that passed anomaly detection)
+Step 4  →  Apply calculation based on validated source count
+Step 5  →  Calculate spread across all validated prices
+Step 6  →  Assign confidence level
+Step 7  →  Store consensus + all raw source prices preserved
 ```
-
-**Source count rules:**
+ 
+**Source count rules (based on VALIDATED sources, not total sources run):**
 ```
-4+ sources  →  Trim + average            →  confidence: "high"
-3 sources   →  Median (middle value)     →  confidence: "high"
-2 sources   →  Simple average            →  confidence: "medium"
-1 source    →  Use as-is, flag clearly   →  confidence: "low"
-0 sources   →  No data — alert developer →  confidence: "unavailable"
+0 sources   →  No data — alert developer        →  confidence: "unavailable"
+1 source    →  Use as-is, flag clearly           →  confidence: "low"
+2 sources   →  Simple average                    →  confidence: "medium"
+3+ sources  →  Drop highest + lowest, average rest  →  confidence: "high"
 ```
-
-**Phase 1 — equal weights for all sources.** Reputation weighting added in Phase 2 once we have real accuracy data to measure against.
-
+ 
+**Why 3+ uses same rule as 4+ (revised from Session 8):**
+Previous logic used median for exactly 3 sources and trimmed mean for 4+.
+Simplified to one consistent rule: always trim highest + lowest for 3+ sources.
+For exactly 3 sources, trimming highest + lowest leaves 1 — same as median.
+One rule is simpler to reason about, test, and maintain.
+ 
+**Why validated source count matters (revised from Session 8):**
+If 3 sources run but anomaly detection rejects one, you have 2 trusted prices.
+Counting total sources run would give false "high" confidence with only "medium"
+quality data. Always count sources that PASSED validation.
+ 
 **Anomaly detection** — before including any price in the calculation:
 - Check against `price_range_usd` in metals.json
-- If price is outside range → reject that data point for this run + log warning
+- If price is outside range → reject that data point + log warning
 - Example: gold at $500 or $50,000 → rejected immediately
-
+- Other sources continue normally — one bad source never stops others
+ 
 **Spread monitoring** — after calculating consensus:
-- Calculate `spread_percent` = (max - min) / consensus × 100
-- Large spread signals something unusual is happening
-- Log it — may alert developer if spread exceeds threshold
-
-**GoodReturns is NOT included in trimmed mean** — it gives per gram INR retail rates, not troy ounce spot prices. It feeds directly into `city_rates{}` on the snapshot only.
-
+```
+spread_percent = (max - min) / consensus × 100
+ 
+spread < 1%   →  Normal — log only
+spread 1-2%   →  Log warning — sources diverging
+spread > 2%   →  Log warning + flag in snapshot
+```
+ 
+**GoodReturns is NOT included in trimmed mean** — different unit (gram vs troy
+ounce), different currency (INR vs USD), different price type (retail vs spot).
+Feeds directly into `city_rates{}` on the snapshot only.
+ 
+**INR conversion** — Metals.Dev only (single source of truth):
+```
+inr_rate = currencies.INR from Metals.Dev response
+usd_to_inr = 1 / inr_rate
+price_inr = price_usd / inr_rate
+ 
+If Metals.Dev fails → price_inr = null across entire snapshot
+Never guess the exchange rate
+```
+ 
+**Raw source prices always preserved:**
+```json
+"source_prices": {
+    "gold_api_com": 3100.00,
+    "metals_dev":   3098.00,
+    "goldapi_io":   3106.50
+}
+```
+ 
 ---
 
 ### 5. INR Conversion Logic
@@ -1051,7 +1086,10 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 | Spread monitoring | Calculated and stored | Large spread = signal of unusual market activity |
 | Alert cooldown | 4 hours | Prevents spam when price fluctuates near threshold |
 | Festival advisory | 7 days before | Enough lead time for users to plan purchases |
-
+| Trimmed mean for 3 sources | Same trim rule as 4+ | Simpler — one consistent rule, math is identical to median |
+| Validated source count | Count post-anomaly-detection only | Prevents false high confidence from rejected prices |
+| Spread thresholds | <1% normal, 1-2% warn, >2% flag | Catches diverging sources without false positives |
+ 
 ---
 
 ## 🧑‍💻 Developer Info
@@ -1068,10 +1106,12 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 ---
 
 ## 📍 Current Status
-
-**Phase:** Phase 1 — Building the consolidator
-
-**Scrapers — ALL COMPLETE:**
+ 
+**Phase:** Phase 1 — COMPLETE ✅ Moving to AWS Setup + Phase 2
+ 
+---
+ 
+### Scrapers — ALL COMPLETE
 - ✅ gold_api_com.py — built, tested
 - ✅ metals_dev.py — built, tested
 - ✅ goldapi_io.py — built, tested
@@ -1079,28 +1119,93 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 - ❌ free_gold_api.py — disabled permanently
 - ⏭️ moneycontrol.py — skipped (MCX covered by Metals.Dev)
 - ⏭️ rapaport.py — skipped (paywalled)
-
-**Engine — COMPLETE:**
+ 
+### Engine — COMPLETE
 - ✅ base_scraper.py
 - ✅ api_fetcher.py
 - ✅ html_scraper.py — curl_cffi Cloudflare bypass
 - ✅ data_normaliser.py
-
-**Next Immediate Task:**
-Build `src/lambdas/consolidator/consolidator.py`
-- Standalone Python class
-- Runs all scrapers
-- Extracts INR rate from Metals.Dev
-- Applies trimmed mean per metal
-- Builds final snapshot with city_rates, karats, extra fields
-- Thin Lambda wrapper at the end
-
-**After consolidator:**
-- `test_consolidator.py` — run it locally
-- Wire consolidator to EventBridge schedule
-- Move to Phase 2 — WhatsApp bot
-
+ 
+### Consolidator — ALL COMPLETE
+- ✅ trimmed_mean.py — unit tested (11 tests passing)
+- ✅ anomaly_detector.py — unit tested (15 tests passing)
+- ✅ validator.py — unit tested (14 tests passing)
+- ✅ merger.py — unit tested (13 tests passing)
+- ✅ dynamo_writer.py — stub, unit tested (6 tests passing)
+- ✅ s3_writer.py — stub, unit tested (6 tests passing)
+- ✅ consolidator.py — unit tested (16 tests passing)
+- ✅ handler.py — thin Lambda wrapper
+ 
+### Tests — ALL PASSING
+- ✅ tests/unit/lambdas/test_trimmed_mean.py
+- ✅ tests/unit/lambdas/test_anomaly_detector.py
+- ✅ tests/unit/lambdas/test_validator.py
+- ✅ tests/unit/lambdas/test_merger.py
+- ✅ tests/unit/lambdas/test_writers.py
+- ✅ tests/unit/lambdas/test_consolidator.py
+- ✅ End-to-end: python src/lambdas/consolidator/consolidator.py — status 200
+ 
+### Fixtures — FILLED
+- ✅ tests/fixtures/mock_goldapi_response.json — realistic GoldAPI.io response
+- ✅ tests/fixtures/mock_dynamo_tables.json — DynamoDB table structures reference
+ 
+### Documentation — Session 9
+- ✅ docs/architecture/consensus-logic.md — full consensus logic documented
+ 
 ---
-
-*Last updated: Session 8 — All business logic decisions documented. Moneycontrol and Rapaport skipped (reasons documented). Copper confirmed covered. Consolidator design finalised. Ready to build consolidator.py next.*
-*Update this file at the end of every working session.*
+ 
+### Next Immediate Tasks
+ 
+**Step 1 — AWS Setup (before Phase 2)**
+- Install AWS CLI on Mac
+- Configure IAM credentials
+- Set up Terraform for infrastructure
+- Deploy core resources:
+  - S3 bucket (gold-agent-prices)
+  - DynamoDB tables (live_prices, source_health, quota_tracker)
+  - Lambda function (gold-agent-consolidator)
+  - EventBridge rule (hourly schedule)
+  - IAM roles and policies
+- Wire dynamo_writer.py and s3_writer.py with real boto3 calls
+- Run consolidator as real Lambda — verify DynamoDB + S3 writes
+ 
+**Step 2 — Phase 2: WhatsApp Bot**
+- WhatsApp Business API setup (Meta developer console)
+- agent-brain Lambda (Claude API integration)
+- whatsapp-handler Lambda
+- conversation Lambda
+- alert-checker Lambda
+ 
+---
+ 
+# ============================================================
+# ADD these rows to the Key Decisions table:
+# ============================================================
+ 
+| Trimmed mean for 3 sources | Same rule as 4+ (drop highest+lowest) | Simpler — one consistent rule, math identical to median |
+| Validated source count | Count post-anomaly-detection only | Prevents false high confidence from rejected prices |
+| Spread thresholds | <1% normal, 1-2% warn, >2% flag | Catches diverging sources without false positives |
+| Fixtures | mock_goldapi_response.json + mock_dynamo_tables.json | Realistic test data, closer to production |
+| Consolidator testing | Mock _run_scrapers with patch.object | No API calls in unit tests, fast and deterministic |
+| AWS infrastructure | Terraform for infra, SAM optional for Lambda deploy | Industry standard, handles all 18+ services cleanly |
+| AWS setup order | After Phase 1 local complete, before Phase 2 | Need live data pipeline before building WhatsApp bot |
+ 
+---
+ 
+# ============================================================
+# UPDATE the Consolidator Testing Approach section:
+# ============================================================
+ 
+### 7. Consolidator Testing Approach
+ 
+- Written as standalone Python class — testable locally like all scrapers
+- Each consolidator file built and unit tested independently with mock data
+- Test order: trimmed_mean → anomaly_detector → validator → merger → writers → consolidator
+- Unit tests use patch.object to mock _run_scrapers — no live API calls
+- End-to-end test: python src/lambdas/consolidator/consolidator.py — makes real API calls
+- Thin Lambda wrapper in handler.py — 5 lines of real logic
+- All 16 unit tests passing + end-to-end returning status 200
+ 
+*Last updated: Session 9 — Phase 1 complete. All consolidator files built and tested.
+End-to-end consolidator running locally with status 200. Moving to AWS setup next.*
+ 

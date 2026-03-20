@@ -1,0 +1,161 @@
+{
+  "_comment": "DynamoDB table structures for Gold Agent — reference for AWS setup",
+  "_last_updated": "Session 9",
+
+  "tables": {
+
+    "live_prices": {
+      "_purpose": "Latest consensus price per metal — what the WhatsApp bot reads",
+      "_partition_key": "metal",
+      "_ttl": "none — always overwritten, not expired",
+      "sample_record": {
+        "metal":          "gold",
+        "price_usd":      3101.50,
+        "price_inr":      282120.0,
+        "unit":           "troy_ounce",
+        "confidence":     "high",
+        "sources_used":   ["gold_api_com", "metals_dev", "goldapi_io"],
+        "sources_count":  3,
+        "spread_percent": 0.27,
+        "spread_flagged": false,
+        "snapshot_id":    "2026-03-01T14:00:00+00:00",
+        "updated_at":     "2026-03-01T14:00:05+00:00"
+      }
+    },
+
+    "source_health": {
+      "_purpose": "Health status of every data source — circuit breaker state",
+      "_partition_key": "source_id",
+      "_ttl": "none",
+      "sample_record": {
+        "source_id":             "gold_api_com",
+        "health_status":         "healthy",
+        "consecutive_failures":  0,
+        "last_success_at":       "2026-03-01T14:00:00+00:00",
+        "last_failure_at":       null,
+        "last_failure_reason":   null,
+        "circuit_breaker_open":  false,
+        "recovery_attempts":     0,
+        "updated_at":            "2026-03-01T14:00:05+00:00"
+      }
+    },
+
+    "quota_tracker": {
+      "_purpose": "API usage counts per source per month — quota management",
+      "_partition_key": "source_id",
+      "_sort_key": "month",
+      "_ttl": "90 days",
+      "sample_record": {
+        "source_id":         "metals_dev",
+        "month":             "2026-03",
+        "requests_used":     14,
+        "requests_limit":    100,
+        "usage_percent":     14.0,
+        "warning_sent":      false,
+        "critical_sent":     false,
+        "disabled_for_month": false,
+        "reset_on":          "2026-04-01",
+        "updated_at":        "2026-03-01T14:00:05+00:00"
+      }
+    },
+
+    "users": {
+      "_purpose": "User profiles — phone, language, city, joined",
+      "_partition_key": "phone_number",
+      "_ttl": "none",
+      "sample_record": {
+        "phone_number":   "+919876543210",
+        "language":       "hindi",
+        "city":           "mumbai",
+        "joined_at":      "2026-03-01T10:00:00+00:00",
+        "last_active_at": "2026-03-01T14:00:00+00:00",
+        "is_active":      true,
+        "alert_count":    2
+      }
+    },
+
+    "alert_preferences": {
+      "_purpose": "User price threshold alerts",
+      "_partition_key": "phone_number",
+      "_sort_key": "alert_id",
+      "_ttl": "none",
+      "sample_record": {
+        "phone_number":   "+919876543210",
+        "alert_id":       "alert_001",
+        "metal":          "gold",
+        "threshold_inr":  290000.0,
+        "direction":      "below",
+        "is_active":      true,
+        "last_triggered": null,
+        "created_at":     "2026-03-01T10:00:00+00:00"
+      }
+    },
+
+    "conversation_history": {
+      "_purpose": "Last 10 messages per user for context",
+      "_partition_key": "phone_number",
+      "_sort_key": "timestamp",
+      "_ttl": "7 days",
+      "sample_record": {
+        "phone_number": "+919876543210",
+        "timestamp":    "2026-03-01T14:00:00+00:00",
+        "role":         "user",
+        "message":      "aaj gold ka rate kya hai mumbai mein?",
+        "language":     "hindi",
+        "intent":       "price_query"
+      }
+    },
+
+    "community_rates": {
+      "_purpose": "Individual jeweller rate reports from users",
+      "_partition_key": "jeweller_id",
+      "_sort_key": "reported_at",
+      "_ttl": "48 hours",
+      "sample_record": {
+        "jeweller_id":   "jeweller_mumbai_001",
+        "jeweller_name": "Tribhovandas Bhimji Zaveri",
+        "city":          "mumbai",
+        "phone_number":  "+919876543210",
+        "metal":         "gold",
+        "karat":         "22K",
+        "price_inr":     8950.0,
+        "unit":          "gram",
+        "reported_at":   "2026-03-01T12:00:00+00:00",
+        "reporter_score": 75
+      }
+    },
+
+    "jeweller_community_summary": {
+      "_purpose": "Validated community rate per jeweller",
+      "_partition_key": "jeweller_id",
+      "_ttl": "24 hours",
+      "sample_record": {
+        "jeweller_id":        "jeweller_mumbai_001",
+        "jeweller_name":      "Tribhovandas Bhimji Zaveri",
+        "city":               "mumbai",
+        "metal":              "gold",
+        "karat":              "22K",
+        "consensus_price":    8950.0,
+        "confidence":         "high",
+        "reporters_count":    5,
+        "spread_percent":     0.3,
+        "calculated_at":      "2026-03-01T13:00:00+00:00",
+        "valid_until":        "2026-03-02T13:00:00+00:00"
+      }
+    },
+
+    "user_reputation": {
+      "_purpose": "Reporter trust scores for community rate gamification",
+      "_partition_key": "phone_number",
+      "_ttl": "none",
+      "sample_record": {
+        "phone_number":    "+919876543210",
+        "score":           75,
+        "reports_total":   12,
+        "reports_accurate": 10,
+        "reports_outlier": 2,
+        "last_updated":    "2026-03-01T13:00:00+00:00"
+      }
+    }
+  }
+}
