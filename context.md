@@ -1146,6 +1146,13 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 | Project cleanliness | rate_limiter.py + response_parser.py kept empty | Intentional placeholders. Rate limiting in sources.json config. Response parsing in individual scrapers. |
 | urllib3 warning | Ignored for now | RequestsDependencyWarning from requests library — harmless, everything works. Fix later with pip install urllib3==2.2.3 if needed. |
 | GoodReturns price_usd | Always null — expected and correct | GoodReturns gives INR only. price_usd=None by design. These records go to city_rates{} not consensus. |
+| AWS infrastructure tool | Terraform for infra + SAM for Lambda deploy | Terraform handles all 18+ AWS services cleanly. SAM handles Lambda packaging, zip, layers, dependencies. Industry standard split used by real teams. |
+| Terraform scope | VPC, DynamoDB, S3, IAM, EventBridge, SNS, SES | Long-lived infrastructure resources that rarely change |
+| SAM scope | Lambda function packaging and deployment only | SAM is simpler for Python Lambda with dependencies |
+| Terraform experience | Manikanta is a beginner with Terraform | Will be guided step by step in AWS setup session |
+| AWS CLI | Not yet installed on Mac | First step in AWS setup session |
+| AWS setup timing | After Phase 1 local complete, before Phase 2 | Need live data pipeline before building WhatsApp bot |
+
 ---
 
 ## 🧑‍💻 Developer Info
@@ -1295,6 +1302,52 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 - Thin Lambda wrapper in handler.py — 5 lines of real logic
 - All 16 unit tests passing + end-to-end returning status 200
  
+### 8. AWS Infrastructure Approach
+ 
+**Two tools, two jobs:**
+ 
+| Tool | Job | Why |
+|---|---|---|
+| Terraform | All infrastructure | VPC, DynamoDB, S3, IAM, EventBridge, SNS, SES — long-lived resources |
+| AWS SAM | Lambda deployment only | Simpler for Python Lambda packaging, zip, layers, dependencies |
+ 
+This is the standard split used by real engineering teams — Terraform owns the infrastructure, SAM owns the application deployment.
+ 
+**Terraform covers:**
+- VPC + Subnets + NAT Gateway
+- DynamoDB tables (live_prices, source_health, quota_tracker)
+- S3 buckets (gold-agent-prices)
+- IAM roles and policies
+- EventBridge rules (hourly scraper schedule)
+- SNS topics (developer alerts)
+- SES (email alerts)
+- Secrets Manager (API keys)
+ 
+**SAM covers:**
+- Lambda function packaging
+- Lambda deployment
+- Lambda environment variables
+- Lambda timeout + memory config
+ 
+**Setup order for AWS session:**
+```
+1. Install AWS CLI on Mac
+2. Configure IAM credentials
+3. Write Terraform modules for core resources
+4. terraform init + terraform plan + terraform apply
+5. Wire dynamo_writer.py with real boto3 calls
+6. Wire s3_writer.py with real boto3 calls
+7. Deploy consolidator Lambda via SAM
+8. Set up EventBridge schedule
+9. Verify end-to-end in AWS
+```
+ 
+**Important notes:**
+- Manikanta is a Terraform beginner — will be guided step by step
+- AWS CLI not yet installed — first thing to do in AWS session
+- AWS region: ap-south-1 (Mumbai) — always
+- IAM user already created under wife's root account
+
 *Last updated: Session 9 — Phase 1 complete. All consolidator files built and tested.
 End-to-end consolidator running locally with status 200. Moving to AWS setup next.*
  
