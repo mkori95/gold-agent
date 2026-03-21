@@ -882,6 +882,9 @@ gold-agent/
 | Package Manager | pip + venv |
 | Version Control | GitHub (SSH keys) |
 | Region | ap-south-1 (Mumbai) |
+| AWS CLI        | v2.17.49 — installed |
+| Terraform      | Installed via Homebrew |
+| SAM CLI        | Installed via Homebrew |
 
 ---
 
@@ -1152,7 +1155,11 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 | Terraform experience | Manikanta is a beginner with Terraform | Will be guided step by step in AWS setup session |
 | AWS CLI | Not yet installed on Mac | First step in AWS setup session |
 | AWS setup timing | After Phase 1 local complete, before Phase 2 | Need live data pipeline before building WhatsApp bot |
-
+| IAM user | gold-agent-dev created in wife's AWS account | Separate from old s3-user account — clean start |
+| AWS credentials | Configured on Mac via aws configure | Points to wife's account — account ID confirmed |
+| Terraform install | Via Homebrew | Simplest install on Mac |
+| SAM CLI install | Via Homebrew | Needed for Lambda packaging and deployment |
+| Old AWS account | s3-user in account 340752829103 — not used | Wrong account — only had S3 access |
 ---
 
 ## 🧑‍💻 Developer Info
@@ -1170,7 +1177,19 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 
 ## 📍 Current Status
  
-**Phase:** Phase 1 — COMPLETE ✅ Moving to AWS Setup + Phase 2
+**Phase:** Phase 1 — COMPLETE ✅
+AWS Setup — IN PROGRESS 🔄
+
+### AWS Setup Status
+- ✅ AWS CLI installed and configured
+- ✅ IAM user gold-agent-dev created with correct permissions
+- ✅ AWS credentials configured on Mac — pointing to wife's account
+- ✅ Terraform installed via Homebrew
+- ✅ SAM CLI installed via Homebrew
+- ⏳ Terraform modules — not started yet
+- ⏳ dynamo_writer.py — real boto3 calls not wired yet
+- ⏳ s3_writer.py — real boto3 calls not wired yet
+- ⏳ Lambda deployment — not done yet
  
 ---
  
@@ -1348,6 +1367,20 @@ This is the standard split used by real engineering teams — Terraform owns the
 - AWS region: ap-south-1 (Mumbai) — always
 - IAM user already created under wife's root account
 
-*Last updated: Session 9 — Phase 1 complete. All consolidator files built and tested.
-End-to-end consolidator running locally with status 200. Moving to AWS setup next.*
+## 🔑 Key Technical Decisions Made in Session 10
+
+### AWS Setup
+- Discovered old IAM user (s3-user) was wrong account — not used
+- Created fresh IAM user gold-agent-dev in wife's AWS account
+- Attached 10 managed policies covering all services Gold Agent needs
+- Configured AWS CLI on Mac with new credentials
+- Installed Terraform and SAM CLI via Homebrew
+- All tools verified and working
+
+### Next Session Starting Point
+- Start writing Terraform modules for core infrastructure
+- Order: S3 bucket → DynamoDB tables → IAM roles → Lambda → EventBridge
+- Then wire dynamo_writer.py and s3_writer.py with real boto3 calls
+
+*Last updated: Session 10 — AWS setup complete. All tools installed and configured. Terraform and SAM CLI ready. Moving to Terraform infrastructure next.*
  
