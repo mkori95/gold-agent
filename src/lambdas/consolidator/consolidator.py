@@ -42,6 +42,7 @@ import json
 import os
 import logging
 from datetime import datetime, timezone
+from src.shared.utils.config_loader import load_json
 
 from src.lambdas.consolidator.validator     import Validator
 from src.lambdas.consolidator.merger        import Merger
@@ -49,6 +50,12 @@ from src.lambdas.consolidator.dynamo_writer import DynamoWriter
 from src.lambdas.consolidator.s3_writer     import S3Writer
 
 logger = logging.getLogger(__name__)
+
+from src.scrapers.engine.secrets_manager import SecretsManager
+
+# Load secrets from AWS Secrets Manager at startup
+# Cached for Lambda container lifetime — only fetches once
+SecretsManager.load()
 
 # Map source id → scraper class
 # Add new scrapers here as they are built
@@ -379,14 +386,16 @@ class Consolidator:
         """
 
         try:
-            config_path = os.path.join(
-                os.path.dirname(__file__),
-                "..", "..", "..", "config", "sources.json"
-            )
-            config_path = os.path.abspath(config_path)
+            # config_path = os.path.join(
+            #     os.path.dirname(__file__),
+            #     "..", "..", "..", "config", "sources.json"
+            # )
+            # config_path = os.path.abspath(config_path)
 
-            with open(config_path, "r") as f:
-                data = json.load(f)
+            # with open(config_path, "r") as f:
+            #     data = json.load(f)
+
+            data = load_json("sources.json")
 
             sources = data.get("sources", [])
 

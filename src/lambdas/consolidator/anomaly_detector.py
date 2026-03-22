@@ -28,6 +28,7 @@ Usage:
 import json
 import os
 import logging
+from src.shared.utils.config_loader import load_json
 
 logger = logging.getLogger(__name__)
 
@@ -271,14 +272,15 @@ class AnomalyDetector:
             Empty dict if file cannot be loaded
         """
         try:
-            config_path = os.path.join(
-                os.path.dirname(__file__),
-                "..", "..", "..", "config", "metals.json"
-            )
-            config_path = os.path.abspath(config_path)
+            # config_path = os.path.join(
+            #     os.path.dirname(__file__),
+            #     "..", "..", "..", "config", "metals.json"
+            # )
+            # config_path = os.path.abspath(config_path)
 
-            with open(config_path, "r") as f:
-                data = json.load(f)
+            # with open(config_path, "r") as f:
+            #     data = json.load(f)
+            data = load_json("metals.json")
 
             config = {
                 metal["id"]: metal

@@ -1,0 +1,356 @@
+{
+  "sources": [
+    {
+      "id": "gold_api_com",
+      "name": "Gold-API.com",
+      "url": "https://api.gold-api.com",
+      "type": "api",
+      "priority": 1,
+      "enabled": true,
+      "health_status": "healthy",
+      "consecutive_failures": 0,
+      "metals": ["gold", "silver", "platinum", "copper"],
+      "endpoints": {
+        "symbols": "/symbols",
+        "price": "/price/{symbol}"
+      },
+      "auth": {
+        "required": false,
+        "type": null,
+        "env_key": null
+      },
+      "rate_limit": {
+        "requests_per_month": null,
+        "is_unlimited": true,
+        "current_month_count": 0,
+        "strategy": "no_limit"
+      },
+      "schedule": {
+        "frequency_minutes": 60,
+        "active_hours_ist": "00:00-23:59",
+        "timezone": "Asia/Kolkata"
+      },
+      "failure_handling": {
+        "max_consecutive_failures": 3,
+        "retry_delay_minutes": 15,
+        "circuit_breaker_reset_minutes": 60,
+        "fallback_source": "metals_dev"
+      },
+      "fields_map": {
+        "price": "price",
+        "symbol": "symbol",
+        "name": "name",
+        "timestamp": "updatedAt"
+      },
+      "notes": "Primary live price source — unlimited, no auth needed. Covers all 4 metals."
+    },
+    {
+      "id": "metals_dev",
+      "name": "Metals.Dev",
+      "url": "https://api.metals.dev/v1",
+      "type": "api",
+      "priority": 1,
+      "enabled": true,
+      "health_status": "healthy",
+      "consecutive_failures": 0,
+      "metals": ["gold", "silver", "platinum", "copper"],
+      "endpoints": {
+        "latest": "/latest?api_key={api_key}&currency=USD&unit=toz"
+      },
+      "auth": {
+        "required": true,
+        "type": "query_param",
+        "env_key": "METALS_DEV_API_KEY"
+      },
+      "rate_limit": {
+        "requests_per_month": 100,
+        "is_unlimited": false,
+        "current_month_count": 0,
+        "strategy": "twice_daily",
+        "warning_threshold": 80,
+        "critical_threshold": 95
+      },
+      "schedule": {
+        "frequency_minutes": 720,
+        "active_hours_ist": "06:00-22:00",
+        "timezone": "Asia/Kolkata"
+      },
+      "failure_handling": {
+        "max_consecutive_failures": 3,
+        "retry_delay_minutes": 15,
+        "circuit_breaker_reset_minutes": 60,
+        "fallback_source": "gold_api_com"
+      },
+      "fields_map": {
+        "gold_usd": "metals.gold",
+        "silver_usd": "metals.silver",
+        "platinum_usd": "metals.platinum",
+        "copper_usd": "metals.copper",
+        "mcx_gold": "metals.mcx_gold",
+        "mcx_silver": "metals.mcx_silver",
+        "ibja_gold": "metals.ibja_gold",
+        "inr_rate": "currencies.INR",
+        "timestamp": "timestamps.metal"
+      },
+      "notes": "Most valuable source — gives MCX + IBJA + INR conversion in one call. Run twice daily to stay within 100/month limit."
+    },
+    {
+      "id": "goldapi_io",
+      "name": "GoldAPI.io",
+      "url": "https://www.goldapi.io/api",
+      "type": "api",
+      "priority": 1,
+      "enabled": true,
+      "health_status": "healthy",
+      "consecutive_failures": 0,
+      "metals": ["gold", "silver", "platinum"],
+      "endpoints": {
+        "price": "/{symbol}/USD"
+      },
+      "auth": {
+        "required": true,
+        "type": "header",
+        "header_name": "x-access-token",
+        "env_key": "GOLDAPI_IO_KEY"
+      },
+      "rate_limit": {
+        "requests_per_month": 100,
+        "is_unlimited": false,
+        "current_month_count": 0,
+        "strategy": "twice_daily",
+        "warning_threshold": 80,
+        "critical_threshold": 95
+      },
+      "schedule": {
+        "frequency_minutes": 720,
+        "active_hours_ist": "06:00-22:00",
+        "timezone": "Asia/Kolkata"
+      },
+      "failure_handling": {
+        "max_consecutive_failures": 3,
+        "retry_delay_minutes": 15,
+        "circuit_breaker_reset_minutes": 60,
+        "fallback_source": "gold_api_com"
+      },
+      "fields_map": {
+        "price": "price",
+        "price_gram_24k": "price_gram_24k",
+        "price_gram_22k": "price_gram_22k",
+        "price_gram_18k": "price_gram_18k",
+        "change": "ch",
+        "change_percent": "chp",
+        "ask": "ask",
+        "bid": "bid",
+        "timestamp": "timestamp"
+      },
+      "notes": "Unique value — karat wise gram prices. Run twice daily to stay within 100/month limit."
+    },
+    {
+      "id": "free_gold_api",
+      "name": "FreeGoldAPI.com",
+      "url": "https://freegoldapi.com",
+      "type": "api",
+      "priority": 1,
+      "enabled": false,
+      "health_status": "disabled",
+      "consecutive_failures": 0,
+      "metals": ["gold"],
+      "endpoints": {
+        "historical": "/data/latest.json"
+      },
+      "auth": {
+        "required": false,
+        "type": null,
+        "env_key": null
+      },
+      "rate_limit": {
+        "requests_per_month": null,
+        "is_unlimited": true,
+        "current_month_count": 0,
+        "strategy": "no_limit"
+      },
+      "schedule": {
+        "frequency_minutes": 10080,
+        "active_hours_ist": "06:00-06:30",
+        "timezone": "Asia/Kolkata"
+      },
+      "failure_handling": {
+        "max_consecutive_failures": 3,
+        "retry_delay_minutes": 60,
+        "circuit_breaker_reset_minutes": 360,
+        "fallback_source": null
+      },
+      "fields_map": {
+        "date": "date",
+        "price": "price",
+        "source": "source"
+      },
+      "notes": "No date filtering supported — returns full dataset from 1258 AD. Not practical. Own S3 history will serve this need by Phase 2."
+    },
+    {
+      "id": "goodreturns",
+      "name": "GoodReturns.in",
+      "url": "https://www.goodreturns.in",
+      "type": "scraper",
+      "priority": 3,
+      "enabled": true,
+      "health_status": "healthy",
+      "consecutive_failures": 0,
+      "metals": ["gold", "silver"],
+      "endpoints": {
+        "city_rates": "/gold-rates/{city}.html"
+      },
+      "auth": {
+        "required": false,
+        "type": null,
+        "env_key": null
+      },
+      "rate_limit": {
+        "requests_per_month": null,
+        "is_unlimited": true,
+        "current_month_count": 0,
+        "strategy": "polite_scraping",
+        "delay_between_requests_seconds": 5
+      },
+      "schedule": {
+        "frequency_minutes": 120,
+        "active_hours_ist": "06:00-22:00",
+        "timezone": "Asia/Kolkata"
+      },
+      "failure_handling": {
+        "max_consecutive_failures": 3,
+        "retry_delay_minutes": 30,
+        "circuit_breaker_reset_minutes": 120,
+        "fallback_source": "moneycontrol"
+      },
+      "cities": [
+        "mumbai", "delhi", "chennai", "hyderabad",
+        "bangalore", "kolkata", "ahmedabad", "pune",
+        "jaipur", "lucknow", "kerala", "coimbatore",
+        "madurai", "visakhapatnam", "vijayawada", "surat",
+        "nagpur", "nashik", "chandigarh", "bhubaneswar",
+        "patna", "vadodara", "rajkot", "mangalore",
+        "mysore", "salem", "trichy", "ayodhya"
+      ],
+      "fields_map": {
+        "city": "city",
+        "price_24k": "24K-price",
+        "price_22k": "22K-price",
+        "price_18k": "18K-price"
+      },
+      "notes": "Primary source for city-wise INR rates. 28 cities covered. Prices are per gram in INR — not troy ounce. Scrape politely with 5 second delay between cities. Fallback to Moneycontrol if down."
+    },
+    {
+      "id": "moneycontrol",
+      "name": "Moneycontrol",
+      "url": "https://www.moneycontrol.com",
+      "type": "scraper",
+      "priority": 3,
+      "enabled": true,
+      "health_status": "healthy",
+      "consecutive_failures": 0,
+      "metals": ["gold", "silver"],
+      "endpoints": {
+        "mcx_rates": "/commodity/gold"
+      },
+      "auth": {
+        "required": false,
+        "type": null,
+        "env_key": null
+      },
+      "rate_limit": {
+        "requests_per_month": null,
+        "is_unlimited": true,
+        "current_month_count": 0,
+        "strategy": "polite_scraping",
+        "delay_between_requests_seconds": 5
+      },
+      "schedule": {
+        "frequency_minutes": 120,
+        "active_hours_ist": "09:00-23:30",
+        "timezone": "Asia/Kolkata"
+      },
+      "failure_handling": {
+        "max_consecutive_failures": 3,
+        "retry_delay_minutes": 30,
+        "circuit_breaker_reset_minutes": 120,
+        "fallback_source": "goodreturns"
+      },
+      "fields_map": {
+        "price": "price",
+        "change": "change",
+        "change_percent": "change_percent",
+        "timestamp": "timestamp"
+      },
+      "notes": "Backup for MCX India rates. Only active during MCX trading hours 9AM-11:30PM IST."
+    },
+    {
+      "id": "rapaport",
+      "name": "Rapaport",
+      "url": "https://www.rapaport.com",
+      "type": "scraper",
+      "priority": 3,
+      "enabled": true,
+      "health_status": "healthy",
+      "consecutive_failures": 0,
+      "metals": ["diamond"],
+      "endpoints": {
+        "index": "/diamonds/prices/index"
+      },
+      "auth": {
+        "required": false,
+        "type": null,
+        "env_key": null
+      },
+      "rate_limit": {
+        "requests_per_month": null,
+        "is_unlimited": true,
+        "current_month_count": 0,
+        "strategy": "polite_scraping",
+        "delay_between_requests_seconds": 10
+      },
+      "schedule": {
+        "frequency_minutes": 10080,
+        "active_hours_ist": "06:00-06:30",
+        "timezone": "Asia/Kolkata"
+      },
+      "failure_handling": {
+        "max_consecutive_failures": 3,
+        "retry_delay_minutes": 60,
+        "circuit_breaker_reset_minutes": 360,
+        "fallback_source": null
+      },
+      "fields_map": {
+        "index": "rapaport_index",
+        "date": "date"
+      },
+      "notes": "Diamond index only — no single price. Run once weekly. Used for education and buying guide in Phase 2."
+    }
+  ],
+  "future_paid_sources": [
+    {
+      "id": "metals_api_com",
+      "name": "Metals-API.com",
+      "url": "https://metals-api.com",
+      "type": "api",
+      "priority": 2,
+      "enabled": false,
+      "cost": "$4.99/month",
+      "activate_phase": 4,
+      "env_key": "METALS_API_COM_KEY",
+      "notes": "Indian city-wise prices as clean API — no scraper needed. Add when revenue starts in Phase 4. Replaces GoodReturns scraper."
+    },
+    {
+      "id": "ibja_official",
+      "name": "IBJA Official API",
+      "url": "https://indiagoldratesapi.com",
+      "type": "api",
+      "priority": 2,
+      "enabled": false,
+      "cost": "Contact nagaraj.iyer@ibja.in for pricing",
+      "activate_phase": 4,
+      "env_key": "IBJA_API_KEY",
+      "notes": "RBI approved benchmark rates. Used by HDFC, ICICI, Muthoot. Most authoritative India source. Add in Phase 4."
+    }
+  ]
+}

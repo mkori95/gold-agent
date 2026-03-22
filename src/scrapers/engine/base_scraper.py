@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from abc import ABC, abstractmethod
 import json
 import os
+from src.shared.utils.config_loader import load_json
+
 
 
 # ============================================================
@@ -247,14 +249,16 @@ class BaseScraper(ABC):
         """
         try:
             # Find the config file relative to project root
-            config_path = os.path.join(
-                os.path.dirname(__file__),
-                "..", "..", "..", "config", "metals.json"
-            )
-            config_path = os.path.abspath(config_path)
+            # config_path = os.path.join(
+            #     os.path.dirname(__file__),
+            #     "..", "..", "..", "config", "metals.json"
+            # )
+            # config_path = os.path.abspath(config_path)
 
-            with open(config_path, "r") as f:
-                data = json.load(f)
+            # with open(config_path, "r") as f:
+            #     data = json.load(f)
+            
+            data = load_json("metals.json")
 
             # Convert list to dict keyed by metal id
             # Makes lookups like metals_config["gold"] easy

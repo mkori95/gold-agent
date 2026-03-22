@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: Gold Agent — Serverless Data Pipeline
+
+# ============================================================
+# Global settings — applied to all Lambda functions
+# ============================================================
+Globals:
+  Function:
+    Runtime: python3.12
+    MemorySize: 256
+    Timeout: 300
+    Environment:
+      Variables:
+        S3_BUCKET_NAME: gold-agent-prices
+        DYNAMO_TABLE_LIVE_PRICES: gold-agent-live-prices
+        DYNAMO_TABLE_SOURCE_HEALTH: gold-agent-source-health
+        DYNAMO_TABLE_QUOTA_TRACKER: gold-agent-quota-tracker
+        AWS_REGION_NAME: ap-south-1
+        CONFIG_PATH: /var/task/config
+
+# ============================================================
+# Resources
+# ============================================================
+Resources:
+
+  # ----------------------------------------------------------
+  # Consolidator Lambda
+  # Runs all scrapers, merges prices, writes to DynamoDB + S3
+  # ----------------------------------------------------------
+  ConsolidatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: gold-agent-consolidator
+      CodeUri: .
+      Handler: src/lambdas/consolidator/handler.handler
+      Role: arn:aws:iam::077419561931:role/gold-agent-consolidator-role
+      Description: Runs all scrapers and consolidates prices into snapshot
+
+      # Future Lambda functions — add here as phases progress
+      # Phase 2: WhatsAppHandlerFunction
+      # Phase 2: AgentBrainFunction
+      # Phase 2: AlertCheckerFunction
+      # Phase 3: RateValidatorFunction
+      # Phase 4: ReportFunction
+
+# ============================================================
+# Outputs
+# ============================================================
+Outputs:
+  ConsolidatorFunction:
+    Description: Consolidator Lambda Function ARN
+    Value: !GetAtt ConsolidatorFunction.Arn

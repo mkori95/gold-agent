@@ -19,6 +19,8 @@ import json
 import os
 from datetime import datetime, timezone
 from typing import Optional
+from src.shared.utils.config_loader import load_json
+
 
 logger = logging.getLogger(__name__)
 
@@ -335,14 +337,15 @@ class DataNormaliser:
             Dict of metal configs keyed by metal id
         """
         try:
-            config_path = os.path.join(
-                os.path.dirname(__file__),
-                "..", "..", "..", "config", "metals.json"
-            )
-            config_path = os.path.abspath(config_path)
+            # config_path = os.path.join(
+            #     os.path.dirname(__file__),
+            #     "..", "..", "..", "config", "metals.json"
+            # )
+            # config_path = os.path.abspath(config_path)
 
-            with open(config_path, "r") as f:
-                data = json.load(f)
+            # with open(config_path, "r") as f:
+            #     data = json.load(f)
+            data = load_json("metals.json")
 
             return {
                 metal["id"]: metal

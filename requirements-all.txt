@@ -1,0 +1,74 @@
+# ============================================================
+# Gold Agent — Python Dependencies
+# Install: pip install -r requirements.txt
+# ============================================================
+
+# ============================================================
+# Phase 1 — Data Pipeline
+# ============================================================
+
+# HTTP requests — used by all API scrapers
+requests==2.32.5
+
+# Chrome TLS impersonation — bypasses Cloudflare on HTML scrapers
+# Drop-in replacement for requests with impersonate="chrome120"
+curl_cffi==0.7.4
+
+# HTML parsing — used by GoodReturns and Moneycontrol scrapers
+beautifulsoup4==4.12.2
+
+# Faster HTML parser — used by BeautifulSoup under the hood
+lxml==4.9.3
+
+# AWS SDK — DynamoDB, S3, SNS, SES, Lambda, EventBridge
+boto3==1.34.0
+
+# Loads .env file locally during development
+# Not needed in Lambda — Lambda uses environment variables directly
+python-dotenv==1.0.0
+
+# ============================================================
+# Phase 2 — WhatsApp Bot
+# ============================================================
+
+# Anthropic Claude API — powers the agent brain
+anthropic==0.18.0
+
+# Timezone handling — IST conversions
+pytz==2024.1
+
+# ============================================================
+# Phase 3 — Community Features
+# ============================================================
+
+# Google Places API — nearby jeweller search
+googlemaps==4.10.0
+
+# ============================================================
+# Phase 4 — Reports and Dashboard
+# ============================================================
+
+# PDF generation — weekly reports
+reportlab==4.1.0
+
+# ============================================================
+# Development Only — not deployed to Lambda
+# ============================================================
+
+# Package installation
+setuptools
+
+# Testing framework
+pytest==7.4.0
+
+# Mock objects for testing
+pytest-mock==3.12.0
+
+# Mock AWS services locally — test without real AWS
+moto==4.2.0
+
+# Code formatter
+black==23.12.0
+
+# Code style checker
+pylint==3.0.0

@@ -1186,20 +1186,32 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 **Phase:** Phase 1 — COMPLETE ✅
 AWS Setup — IN PROGRESS 🔄
 
-### AWS Setup Status
+### AWS Setup Status (Updated)
 - ✅ AWS CLI installed and configured
 - ✅ IAM user gold-agent-dev created with correct permissions
-- ✅ AWS credentials configured on Mac — pointing to wife's account
-- ✅ Terraform installed via Homebrew
-- ✅ SAM CLI installed via Homebrew
-- ✅ S3 state bucket created — gold-agent-terraform-state (versioning enabled)
-- ✅ S3 prices bucket created — gold-agent-prices (versioning, encryption, public access blocked)
+- ✅ Terraform and SAM CLI installed via Homebrew
+- ✅ S3 state bucket created — gold-agent-terraform-state
+- ✅ S3 prices bucket created — gold-agent-prices
 - ✅ DynamoDB tables created — gold-agent-live-prices, gold-agent-source-health, gold-agent-quota-tracker
-- ✅ Terraform modules structure — infra/terraform/ with separate modules per service
-- ⏳ IAM roles — next
-- ⏳ Lambda deployment — not done yet
-- ⏳ dynamo_writer.py — real boto3 calls not wired yet
+- ✅ Terraform modules for S3, DynamoDB, IAM done
+- ✅ IAM role created — gold-agent-consolidator-role
+- ✅ Secrets stored in AWS Secrets Manager — gold-agent/metals-dev-api-key, gold-agent/goldapi-io-key
+- ✅ secrets_manager.py built — fetches and caches secrets at Lambda startup
+- ✅ config_loader.py built — handles config file paths for local and Lambda
+- ✅ Lambda deployed — gold-agent-consolidator live in ap-south-1
+- ✅ Lambda tested — API sources working, spread warning 1.461% (normal)
+- ✅ GoodReturns blocked by AWS IP — expected, known limitation
+- ⏳ dynamo_writer.py — real boto3 calls not wired yet — NEXT
 - ⏳ s3_writer.py — real boto3 calls not wired yet
+- ⏳ GoodReturns — needs to be disabled in Lambda (wastes 173s timeout)
+- ⏳ EventBridge schedule — not set up yet
+
+### Next Immediate Tasks
+1. Wire dynamo_writer.py with real boto3 calls
+2. Wire s3_writer.py with real boto3 calls
+3. Disable GoodReturns in Lambda via environment variable
+4. Set up EventBridge schedule
+5. Verify data flowing into DynamoDB and S3
  
 ---
  

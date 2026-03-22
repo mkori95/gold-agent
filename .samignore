@@ -1,0 +1,15 @@
+infra/
+venv/
+.git/
+.aws-sam/
+__pycache__/
+*.pyc
+.env
+tests/
+docs/
+scripts/
+*.md
+*.toml
+*.sh
+*.txt
+!requirements.txt
