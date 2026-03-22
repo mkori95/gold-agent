@@ -1160,6 +1160,12 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 | Terraform install | Via Homebrew | Simplest install on Mac |
 | SAM CLI install | Via Homebrew | Needed for Lambda packaging and deployment |
 | Old AWS account | s3-user in account 340752829103 — not used | Wrong account — only had S3 access |
+| Terraform state | S3 backend (gold-agent-terraform-state) | Safe, survives laptop loss, industry standard |
+| Terraform structure | Separate modules per service | Cleaner, scalable, one responsibility per module |
+| DynamoDB billing | PAY_PER_REQUEST | Free at our scale — no idle cost |
+| NAT Gateway | Skipped for Phase 1 | Costs $32/month — Lambdas don't need VPC for Phase 1 |
+| VPC | Skipped for Phase 1 | Add in Phase 2 when real traffic starts |
+| .terraform/ | Added to .gitignore | Contains 725MB provider binary — never commit |
 ---
 
 ## 🧑‍💻 Developer Info
@@ -1186,10 +1192,14 @@ AWS Setup — IN PROGRESS 🔄
 - ✅ AWS credentials configured on Mac — pointing to wife's account
 - ✅ Terraform installed via Homebrew
 - ✅ SAM CLI installed via Homebrew
-- ⏳ Terraform modules — not started yet
+- ✅ S3 state bucket created — gold-agent-terraform-state (versioning enabled)
+- ✅ S3 prices bucket created — gold-agent-prices (versioning, encryption, public access blocked)
+- ✅ DynamoDB tables created — gold-agent-live-prices, gold-agent-source-health, gold-agent-quota-tracker
+- ✅ Terraform modules structure — infra/terraform/ with separate modules per service
+- ⏳ IAM roles — next
+- ⏳ Lambda deployment — not done yet
 - ⏳ dynamo_writer.py — real boto3 calls not wired yet
 - ⏳ s3_writer.py — real boto3 calls not wired yet
-- ⏳ Lambda deployment — not done yet
  
 ---
  
@@ -1271,22 +1281,17 @@ AWS Setup — IN PROGRESS 🔄
  
 ### Next Immediate Tasks
  
-**Step 1 — AWS Setup (before Phase 2)**
-- Install AWS CLI on Mac
-- Configure IAM credentials
-- Set up Terraform for infrastructure
-- Deploy core resources:
-  - S3 bucket (gold-agent-prices)
-  - DynamoDB tables (live_prices, source_health, quota_tracker)
-  - Lambda function (gold-agent-consolidator)
-  - EventBridge rule (hourly schedule)
-  - IAM roles and policies
-- Wire dynamo_writer.py and s3_writer.py with real boto3 calls
-- Run consolidator as real Lambda — verify DynamoDB + S3 writes
- 
+**Step 1 — AWS Setup (in progress)**
+- ✅ S3 buckets created
+- ✅ DynamoDB tables created
+- ⏳ IAM roles — next session starting point
+- ⏳ Lambda function
+- ⏳ EventBridge schedule
+- ⏳ Wire dynamo_writer.py and s3_writer.py with real boto3 calls
+
 **Step 2 — Phase 2: WhatsApp Bot**
-- WhatsApp Business API setup (Meta developer console)
-- agent-brain Lambda (Claude API integration)
+- WhatsApp Business API setup
+- agent-brain Lambda
 - whatsapp-handler Lambda
 - conversation Lambda
 - alert-checker Lambda
@@ -1382,5 +1387,5 @@ This is the standard split used by real engineering teams — Terraform owns the
 - Order: S3 bucket → DynamoDB tables → IAM roles → Lambda → EventBridge
 - Then wire dynamo_writer.py and s3_writer.py with real boto3 calls
 
-*Last updated: Session 10 — AWS setup complete. All tools installed and configured. Terraform and SAM CLI ready. Moving to Terraform infrastructure next.*
+*Last updated: Session 11 — Terraform infrastructure started. S3 and DynamoDB created. NAT Gateway and VPC skipped for Phase 1 to keep costs at $0. IAM roles next.*
  
