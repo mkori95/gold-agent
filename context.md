@@ -178,11 +178,13 @@ Sits on top of S3 /prices/ folder. Used for historical queries and dashboard cha
 ### Current Metal Coverage
 | Metal | Sources |
 |---|---|
-| Gold | gold_api_com ✅ metals_dev ✅ goldapi_io ✅ goodreturns ✅ |
-| Silver | gold_api_com ✅ metals_dev ✅ goldapi_io ✅ |
-| Platinum | gold_api_com ✅ metals_dev ✅ goldapi_io ✅ |
-| Copper | gold_api_com ✅ metals_dev ✅ |
-| Diamond | ❌ skipped for now |
+| Gold spot | gold_api_com ✅ metals_dev ✅ goldapi_io ✅ |
+| Silver spot | gold_api_com ✅ metals_dev ✅ goldapi_io ✅ |
+| Platinum spot | gold_api_com ✅ metals_dev ✅ goldapi_io ✅ |
+| Copper spot | gold_api_com ✅ metals_dev ✅ |
+| Gold city rates (India) | rapid_api_gold_silver ⏳ building next |
+| Silver city rates (India) | rapid_api_gold_silver ⏳ building next |
+| Gold international rates | rapid_api_gold_silver ⏳ building next |
 
 ### Phase 4 Paid Sources (future — not building yet)
 | Source | Cost | Why |
@@ -207,6 +209,109 @@ Single `config/sources.json` file controls everything:
 
 ### Adding New Sources
 Edit sources.json only — no code changes needed.
+
+### Retired Sources
+| Source | Reason |
+|---|---|
+| GoodReturns.in (goodreturns.py) | AWS IPs blocked by Cloudflare — replaced by RapidAPI source |
+
+### New Source — RapidAPI Gold Silver Rates India
+- **API ID:** `gold_silver_rates_india`
+- **Provider:** soralapps on RapidAPI
+- **Base URL:** `https://gold-silver-live-prices.p.rapidapi.com`
+- **Cost:** $1.50/month — 550,000 requests/month
+- **Auth:** Header — `x-rapidapi-key` + `x-rapidapi-host`
+- **Env key:** `RAPIDAPI_KEY`
+- **Schedule:** Every 2 hours
+- **Metals:** Gold + Silver
+- **Coverage:** 77 locations (71 Indian cities + 6 international)
+
+**Endpoints:**
+- `/getAllPlaces` — list all available locations
+- `/getGoldRate?place={city}` — current gold rate for a location
+- `/getSilverRate?place={city}` — current silver rate for a location
+- `/getGoldPriceHistory?place={city}&no_of_days={n}` — gold history up to 300 days
+- `/getSilverPriceHistory?place={city}&no_of_days={n}` — silver history up to 300 days
+
+**Response format — Gold (Indian cities):**
+```json
+{
+    "location": "MUMBAI",
+    "variations per 10g": {
+        "Gold 24 Karat (Rs ₹)": "139,720",
+        "Gold 22 Karat (Rs ₹)": "128,077",
+        "Gold 18 Karat (Rs ₹)": "104,790"
+    },
+    "GOLD": {
+        "price": "139,720.00",
+        "change": "+0.00 (+0.000%)",
+        "per value": "Rs ₹ / 10gm"
+    }
+}
+```
+
+**Response format — Gold (International):**
+```json
+{
+    "location": "DUBAI",
+    "variations per 10g": {
+        "Gold 24 Karat (AED د.إ)": "467",
+        "Gold 22 Karat (AED د.إ)": "428"
+    },
+    "GOLD": {
+        "price": "466.75",
+        "change": "+5.75 (+1.250%)",
+        "per value": "AED د.إ / 10gm"
+    }
+}
+```
+
+**Response format — Silver (Indian cities):**
+```json
+{
+    "location": "MUMBAI",
+    "variations per Kg": {
+        "Silver 999 Fine (Rs ₹)": "225,530",
+        "Silver 925 Sterling (Rs ₹)": "208,615"
+    },
+    "SILVER": {
+        "price": "225,530.00",
+        "change": "+0.00 (+0.000%)",
+        "per value": "Rs ₹ / 1kg"
+    }
+}
+```
+
+**Parsing notes:**
+- Prices come as strings with commas — strip commas, convert to float
+- Currency and karat embedded in key names — parse carefully
+- Gold unit: per 10gm (Indian standard)
+- Silver unit: per kg
+
+**77 Locations to scrape:**
+
+Indian cities (71):
+```
+puducherry, agra, raipur, srinagar, vijayawada, jodhpur,
+nashik, daman, noida, rajkot, aurangabad, guwahati, mysore,
+patna, jaipur, allahabad, ranchi, manipur, ludhiana, nagpur,
+silvassa, thane, visakhapatnam, gandhinagar, faridabad,
+ahmedabad, mumbai, meerut, chandigarh, kohima, varanasi,
+panaji, hubli, kolkata, kalyan, kanpur, dhanbad, bhopal,
+vadodara, indore, amritsar, lucknow, itanagar, imphal,
+coimbatore, madurai, thiruvananthapuram, shillong, agartala,
+dehradun, gangtok, new-delhi, pune, gwalior, chennai,
+jabalpur, lakshadweep, solapur, bengaluru, port-blair,
+surat, dispur, aizawl, ghaziabad, kota, hyderabad,
+bhubaneswar, howrah, gurgaon, bangalore, bareilly
+```
+
+International (6):
+```
+united-states, united-kingdom, australia, dubai,
+saudi-arabia, singapore
+```
+
 
 ---
 
@@ -919,6 +1024,8 @@ GOLDAPI_IO_KEY=...
 GOLD_API_COM_KEY=...    (not needed — no auth)
 ```
 
+| RAPIDAPI_KEY | 1 | RapidAPI dashboard | gold-silver-rates-india API key — $1.50/month |
+
 Phase 2+:
 ```
 ANTHROPIC_API_KEY=...
@@ -926,7 +1033,6 @@ WHATSAPP_TOKEN=...
 WHATSAPP_PHONE_ID=...
 GOOGLE_PLACES_KEY=...
 ```
-
 ---
 
 ## 📐 Code Patterns — Follow These in Every File
@@ -1207,11 +1313,44 @@ AWS Setup — IN PROGRESS 🔄
 - ⏳ EventBridge schedule — not set up yet
 
 ### Next Immediate Tasks
-1. Wire dynamo_writer.py with real boto3 calls
-2. Wire s3_writer.py with real boto3 calls
-3. Disable GoodReturns in Lambda via environment variable
-4. Set up EventBridge schedule
-5. Verify data flowing into DynamoDB and S3
+1. Subscribe to RapidAPI $1.50/month plan
+2. Store RAPIDAPI_KEY in AWS Secrets Manager
+3. Add RAPIDAPI_KEY to secrets_manager.py
+4. Update sources.json with rapid_api_gold_silver config
+5. Build src/scrapers/sites/rapid_api_gold_silver.py
+6. Build tests/unit/scrapers/test_rapid_api_gold_silver.py
+7. Retire goodreturns.py — disable in sources.json (keep file, just set enabled: false)
+8. Update consolidator SCRAPER_REGISTRY — add rapid_api_gold_silver, remove goodreturns
+9. Wire dynamo_writer.py with real boto3 calls
+10. Wire s3_writer.py with real boto3 calls
+11. sam build + sam deploy
+12. Test Lambda end to end
+13. Set up EventBridge schedule
+
+### Files to create
+- src/scrapers/sites/rapid_api_gold_silver.py
+- tests/unit/scrapers/test_rapid_api_gold_silver.py
+
+### Files to modify
+- config/sources.json — add rapid_api_gold_silver, disable goodreturns
+- src/config/sources.json — same
+- src/lambdas/consolidator/consolidator.py — update SCRAPER_REGISTRY
+- src/scrapers/engine/secrets_manager.py — add RAPIDAPI_KEY
+- template.yml — no changes needed (secrets handled by secrets_manager)
+- .env — add RAPIDAPI_KEY locally
+
+### Files to retire (disable, not delete)
+- src/scrapers/sites/goodreturns.py — set enabled: false in sources.json
+- tests/unit/scrapers/test_goodreturns.py — keep for reference
+
+### Key architectural decisions made in Session 12
+- GoodReturns retired — AWS IPs blocked by Cloudflare permanently
+- RapidAPI gold-silver-rates-india chosen as replacement
+- $1.50/month for 550k requests — production grade
+- 77 locations — 71 Indian cities + 6 international
+- International coverage added — UAE, USA, UK, Australia, Saudi Arabia, Singapore
+- All scraping runs from Lambda — no GitHub Actions, no EC2, no proxies
+- Architecture is now fully serverless and production ready
  
 ---
  
