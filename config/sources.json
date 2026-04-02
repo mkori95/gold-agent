@@ -1,68 +1,160 @@
 {
   "sources": [
     {
-    "id": "rapid_api_gold_silver",
-    "name": "RapidAPI Gold Silver Rates India",
-    "url": "https://gold-silver-live-prices.p.rapidapi.com",
-    "type": "api",
-    "priority": 2,
-    "enabled": true,
-    "health_status": "healthy",
-    "consecutive_failures": 0,
-    "metals": ["gold", "silver"],
-    "endpoints": {
+      "id": "rapid_api_gold_silver",
+      "name": "RapidAPI Gold Silver Rates India",
+      "url": "https://gold-silver-live-prices.p.rapidapi.com",
+      "type": "api",
+      "priority": 2,
+      "enabled": true,
+      "health_status": "healthy",
+      "consecutive_failures": 0,
+      "metals": [
+        "gold",
+        "silver"
+      ],
+      "endpoints": {
         "gold_rate": "/getGoldRate?place={place}",
         "silver_rate": "/getSilverRate?place={place}",
         "gold_history": "/getGoldPriceHistory?place={place}&no_of_days={days}",
         "silver_history": "/getSilverPriceHistory?place={place}&no_of_days={days}"
-    },
-    "auth": {
+      },
+      "auth": {
         "required": true,
         "type": "header",
         "header_name": "x-rapidapi-key",
         "host_header": "gold-silver-live-prices.p.rapidapi.com",
         "env_key": "RAPIDAPI_KEY"
-    },
-    "rate_limit": {
+      },
+      "rate_limit": {
         "requests_per_month": 550000,
         "is_unlimited": false,
         "current_month_count": 0,
         "strategy": "every_2_hours"
-    },
-    "schedule": {
+      },
+      "schedule": {
         "frequency_minutes": 120,
         "active_hours_ist": "06:00-22:00",
         "timezone": "Asia/Kolkata"
-    },
-    "failure_handling": {
+      },
+      "failure_handling": {
         "max_consecutive_failures": 3,
         "retry_delay_minutes": 30,
         "circuit_breaker_reset_minutes": 120,
         "fallback_source": null
-    },
-    "locations": {
-        "indian_cities": [
-            "puducherry", "agra", "raipur", "srinagar", "vijayawada",
-            "jodhpur", "nashik", "daman", "noida", "rajkot", "aurangabad",
-            "guwahati", "mysore", "patna", "jaipur", "allahabad", "ranchi",
-            "manipur", "ludhiana", "nagpur", "silvassa", "thane",
-            "visakhapatnam", "gandhinagar", "faridabad", "ahmedabad",
-            "mumbai", "meerut", "chandigarh", "kohima", "varanasi",
-            "panaji", "hubli", "kolkata", "kalyan", "kanpur", "dhanbad",
-            "bhopal", "vadodara", "indore", "amritsar", "lucknow",
-            "itanagar", "imphal", "coimbatore", "madurai",
-            "thiruvananthapuram", "shillong", "agartala", "dehradun",
-            "gangtok", "new-delhi", "pune", "gwalior", "chennai",
-            "jabalpur", "lakshadweep", "solapur", "bengaluru", "port-blair",
-            "surat", "dispur", "aizawl", "ghaziabad", "kota", "hyderabad",
-            "bhubaneswar", "howrah", "gurgaon", "bangalore", "bareilly"
+      },
+      "locations": {
+        "active": [
+          "hyderabad",
+          "visakhapatnam",
+          "mumbai",
+          "madurai",
+          "kolkata",
+          "bengaluru",
+          "new-delhi",
+          "united-states",
+          "united-kingdom",
+          "dubai"
         ],
-        "international": [
-            "united-states", "united-kingdom", "australia",
-            "dubai", "saudi-arabia", "singapore"
+        "all_indian_cities": [
+          "puducherry",
+          "agra",
+          "raipur",
+          "srinagar",
+          "vijayawada",
+          "jodhpur",
+          "nashik",
+          "daman",
+          "noida",
+          "rajkot",
+          "aurangabad",
+          "guwahati",
+          "mysore",
+          "patna",
+          "jaipur",
+          "allahabad",
+          "ranchi",
+          "manipur",
+          "ludhiana",
+          "nagpur",
+          "silvassa",
+          "thane",
+          "visakhapatnam",
+          "gandhinagar",
+          "faridabad",
+          "ahmedabad",
+          "mumbai",
+          "meerut",
+          "chandigarh",
+          "kohima",
+          "varanasi",
+          "panaji",
+          "hubli",
+          "kolkata",
+          "kalyan",
+          "kanpur",
+          "dhanbad",
+          "bhopal",
+          "vadodara",
+          "indore",
+          "amritsar",
+          "lucknow",
+          "itanagar",
+          "imphal",
+          "coimbatore",
+          "madurai",
+          "thiruvananthapuram",
+          "shillong",
+          "agartala",
+          "dehradun",
+          "gangtok",
+          "new-delhi",
+          "pune",
+          "gwalior",
+          "chennai",
+          "jabalpur",
+          "lakshadweep",
+          "solapur",
+          "bengaluru",
+          "port-blair",
+          "surat",
+          "dispur",
+          "aizawl",
+          "ghaziabad",
+          "kota",
+          "hyderabad",
+          "bhubaneswar",
+          "howrah",
+          "gurgaon",
+          "bangalore",
+          "bareilly"
+        ],
+        "all_international": [
+          "united-states",
+          "united-kingdom",
+          "australia",
+          "dubai",
+          "saudi-arabia",
+          "singapore"
         ]
-    },
-    "notes": "Replaced GoodReturns.in — provides city-wise gold and silver rates for 71 Indian cities + 6 international locations. $1.50/month for 550k requests. No Cloudflare issues — runs perfectly from Lambda."
+      },
+      "currency_map": {
+        "Rs": "INR",
+        "₹": "INR",
+        "AED": "AED",
+        "USD": "USD",
+        "GBP": "GBP",
+        "AUD": "AUD",
+        "SAR": "SAR",
+        "SGD": "SGD"
+      },
+      "fields_map": {
+        "gold_rate": "GOLD.price",
+        "silver_rate": "SILVER.price",
+        "variations_gold": "variations per 10g",
+        "variations_silver": "variations per Kg"
+      },
+      "notes": "Replaced GoodReturns.in — provides city-wise gold and silver rates for 71 Indian cities + 6 international locations. $1.50/month for 550k requests. No Cloudflare issues — runs perfectly from Lambda."
     },
     {
       "id": "gold_api_com",
@@ -73,7 +165,12 @@
       "enabled": true,
       "health_status": "healthy",
       "consecutive_failures": 0,
-      "metals": ["gold", "silver", "platinum", "copper"],
+      "metals": [
+        "gold",
+        "silver",
+        "platinum",
+        "copper"
+      ],
       "endpoints": {
         "symbols": "/symbols",
         "price": "/price/{symbol}"
@@ -117,7 +214,12 @@
       "enabled": true,
       "health_status": "healthy",
       "consecutive_failures": 0,
-      "metals": ["gold", "silver", "platinum", "copper"],
+      "metals": [
+        "gold",
+        "silver",
+        "platinum",
+        "copper"
+      ],
       "endpoints": {
         "latest": "/latest?api_key={api_key}&currency=USD&unit=toz"
       },
@@ -167,7 +269,11 @@
       "enabled": true,
       "health_status": "healthy",
       "consecutive_failures": 0,
-      "metals": ["gold", "silver", "platinum"],
+      "metals": [
+        "gold",
+        "silver",
+        "platinum"
+      ],
       "endpoints": {
         "price": "/{symbol}/USD"
       },
@@ -218,7 +324,9 @@
       "enabled": false,
       "health_status": "disabled",
       "consecutive_failures": 0,
-      "metals": ["gold"],
+      "metals": [
+        "gold"
+      ],
       "endpoints": {
         "historical": "/data/latest.json"
       },
@@ -260,7 +368,10 @@
       "enabled": true,
       "health_status": "healthy",
       "consecutive_failures": 0,
-      "metals": ["gold", "silver"],
+      "metals": [
+        "gold",
+        "silver"
+      ],
       "endpoints": {
         "city_rates": "/gold-rates/{city}.html"
       },
@@ -288,13 +399,34 @@
         "fallback_source": "moneycontrol"
       },
       "cities": [
-        "mumbai", "delhi", "chennai", "hyderabad",
-        "bangalore", "kolkata", "ahmedabad", "pune",
-        "jaipur", "lucknow", "kerala", "coimbatore",
-        "madurai", "visakhapatnam", "vijayawada", "surat",
-        "nagpur", "nashik", "chandigarh", "bhubaneswar",
-        "patna", "vadodara", "rajkot", "mangalore",
-        "mysore", "salem", "trichy", "ayodhya"
+        "mumbai",
+        "delhi",
+        "chennai",
+        "hyderabad",
+        "bangalore",
+        "kolkata",
+        "ahmedabad",
+        "pune",
+        "jaipur",
+        "lucknow",
+        "kerala",
+        "coimbatore",
+        "madurai",
+        "visakhapatnam",
+        "vijayawada",
+        "surat",
+        "nagpur",
+        "nashik",
+        "chandigarh",
+        "bhubaneswar",
+        "patna",
+        "vadodara",
+        "rajkot",
+        "mangalore",
+        "mysore",
+        "salem",
+        "trichy",
+        "ayodhya"
       ],
       "fields_map": {
         "city": "city",
@@ -313,7 +445,10 @@
       "enabled": true,
       "health_status": "healthy",
       "consecutive_failures": 0,
-      "metals": ["gold", "silver"],
+      "metals": [
+        "gold",
+        "silver"
+      ],
       "endpoints": {
         "mcx_rates": "/commodity/gold"
       },
@@ -357,7 +492,9 @@
       "enabled": true,
       "health_status": "healthy",
       "consecutive_failures": 0,
-      "metals": ["diamond"],
+      "metals": [
+        "diamond"
+      ],
       "endpoints": {
         "index": "/diamonds/prices/index"
       },

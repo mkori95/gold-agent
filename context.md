@@ -1272,6 +1272,11 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 | NAT Gateway | Skipped for Phase 1 | Costs $32/month — Lambdas don't need VPC for Phase 1 |
 | VPC | Skipped for Phase 1 | Add in Phase 2 when real traffic starts |
 | .terraform/ | Added to .gitignore | Contains 725MB provider binary — never commit |
+| src/config/ removed | Deleted — config/ at root is included in SAM package automatically | Redundant duplication — .samignore does not exclude config/ |
+| RapidAPI retry logic | 3 retries with 2 second wait | Some locations timeout intermittently — retry is cleaner than delay |
+| Dubai silver | Skipped — API returns 0 | Known API data issue — our code correctly rejects zero prices |
+| Active locations | Driven by sources.json locations.active | To enable all 77 locations — update sources.json only, no code change |
+| APIFetcher timeout | Increased from 10s to 30s | RapidAPI endpoints occasionally slow to respond |
 ---
 
 ## 🧑‍💻 Developer Info
@@ -1312,20 +1317,35 @@ AWS Setup — IN PROGRESS 🔄
 - ⏳ GoodReturns — needs to be disabled in Lambda (wastes 173s timeout)
 - ⏳ EventBridge schedule — not set up yet
 
+### RapidAPI Scraper Status
+- ✅ RAPIDAPI_KEY added to .env locally
+- ✅ RAPIDAPI_KEY stored in AWS Secrets Manager (gold-agent/rapidapi-key)
+- ✅ secrets_manager.py updated — RAPIDAPI_KEY added to SECRETS_MAP
+- ✅ src/config/ deleted — consolidated to config/ at root only
+- ✅ config_loader.py updated — points to config/ at project root
+- ✅ template.yml updated — CONFIG_PATH env var removed
+- ✅ sources.json updated — locations split into active (10) + all_indian_cities + all_international
+- ✅ rapid_api_gold_silver.py built — retry logic, zero price rejection, currency detection
+- ✅ test_rapid_api_gold_silver.py built
+- ✅ Tests 1-7 passing — all 10 locations returning gold, 9/10 returning silver
+- ❌ Dubai silver — API returns 0 for Dubai silver — known API data issue, not our code
+- ⏳ Tests 8-15 — crashing after TEST 7 — fix next session
+- ⏳ Update SCRAPER_REGISTRY in consolidator.py
+- ⏳ Disable goodreturns in sources.json
+- ⏳ Wire real boto3 calls into dynamo_writer.py and s3_writer.py
+- ⏳ sam build + sam deploy
+- ⏳ Set up EventBridge schedule
+
 ### Next Immediate Tasks
-1. Subscribe to RapidAPI $1.50/month plan
-2. Store RAPIDAPI_KEY in AWS Secrets Manager
-3. Add RAPIDAPI_KEY to secrets_manager.py
-4. Update sources.json with rapid_api_gold_silver config
-5. Build src/scrapers/sites/rapid_api_gold_silver.py
-6. Build tests/unit/scrapers/test_rapid_api_gold_silver.py
-7. Retire goodreturns.py — disable in sources.json (keep file, just set enabled: false)
-8. Update consolidator SCRAPER_REGISTRY — add rapid_api_gold_silver, remove goodreturns
-9. Wire dynamo_writer.py with real boto3 calls
-10. Wire s3_writer.py with real boto3 calls
-11. sam build + sam deploy
-12. Test Lambda end to end
-13. Set up EventBridge schedule
+1. Fix test_rapid_api_gold_silver.py — crashing after TEST 7 — debug and fix
+2. Handle Dubai silver gracefully in TEST 7 — skip if API returns no data
+3. Update consolidator.py SCRAPER_REGISTRY — add rapid_api_gold_silver, remove goodreturns
+4. Disable goodreturns in sources.json — set enabled: false
+5. Wire dynamo_writer.py with real boto3 calls
+6. Wire s3_writer.py with real boto3 calls
+7. sam build + sam deploy
+8. Test Lambda end to end
+9. Set up EventBridge schedule
 
 ### Files to create
 - src/scrapers/sites/rapid_api_gold_silver.py
@@ -1588,5 +1608,5 @@ This is the standard split used by real engineering teams — Terraform owns the
 
 
 
-*Last updated: Session 12 — Lambda deployed and tested. GoodReturns retired due to AWS IP blocking by Cloudflare. RapidAPI gold-silver-rates-india chosen as replacement ($1.50/month, 550k requests, 77 locations). Architecture is fully serverless and production ready. Next session: build RapidAPI scraper + wire real boto3 calls for DynamoDB and S3.*
+*Last updated: Session 13 — RapidAPI scraper built and partially tested. src/config/ deleted — single config/ at root. secrets_manager.py updated with RAPIDAPI_KEY. Tests 1-7 passing for all 10 locations. Dubai silver skipped — API data issue. Tests 8-15 crashing — fix next session. Next session: fix remaining tests, update SCRAPER_REGISTRY, disable goodreturns, wire real boto3 calls for DynamoDB and S3, sam build + sam deploy.*
  

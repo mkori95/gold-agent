@@ -12,14 +12,17 @@ def get_config_path(filename: str) -> str:
     """
     Returns the correct path to a config file.
     
-    Locally:  reads CONFIG_PATH env var or falls back to config/ at project root
-    Lambda:   reads CONFIG_PATH env var → /var/task/config
+    Locally:  config/ at project root
+    Lambda:   /var/task/config (project root is /var/task in Lambda)
     """
-    config_dir = os.environ.get(
+    # In Lambda, the working directory is /var/task
+    # Locally, we always run from project root
+    # Both cases — config/ is at the root level
+    base_dir = os.environ.get(
         "CONFIG_PATH",
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "config")
     )
-    return os.path.abspath(os.path.join(config_dir, filename))
+    return os.path.abspath(os.path.join(base_dir, filename))
 
 
 def load_json(filename: str) -> dict:

@@ -18,7 +18,7 @@ Globals:
         DYNAMO_TABLE_SOURCE_HEALTH: gold-agent-source-health
         DYNAMO_TABLE_QUOTA_TRACKER: gold-agent-quota-tracker
         AWS_REGION_NAME: ap-south-1
-        CONFIG_PATH: /var/task/config
+        #CONFIG_PATH: /var/task/config
 
 # ============================================================
 # Resources

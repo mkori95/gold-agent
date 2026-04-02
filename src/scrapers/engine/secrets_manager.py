@@ -27,7 +27,8 @@ logger = logging.getLogger(__name__)
 # Secrets to fetch — maps secret name → env variable name
 SECRETS_MAP = {
     "gold-agent/metals-dev-api-key": "METALS_DEV_API_KEY",
-    "gold-agent/goldapi-io-key":     "GOLDAPI_IO_KEY"
+    "gold-agent/goldapi-io-key":     "GOLDAPI_IO_KEY",
+    "gold-agent/rapidapi-key":       "RAPIDAPI_KEY"
 }
 
 AWS_REGION = "ap-south-1"
@@ -60,7 +61,7 @@ class SecretsManager:
 
         # Running locally — .env file handles this
         # Check if keys already set by load_dotenv()
-        if os.environ.get("METALS_DEV_API_KEY") and os.environ.get("GOLDAPI_IO_KEY"):
+        if os.environ.get("METALS_DEV_API_KEY") and os.environ.get("GOLDAPI_IO_KEY") and os.environ.get("RAPIDAPI_KEY"):
             logger.info("Secrets already in environment — running locally")
             cls._loaded = True
             return

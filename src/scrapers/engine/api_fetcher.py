@@ -32,7 +32,7 @@ class APIFetcher:
     """
 
     # Default timeout for all API calls — seconds
-    DEFAULT_TIMEOUT = 10
+    DEFAULT_TIMEOUT = 30
 
     def __init__(self, source_config: dict):
         """
