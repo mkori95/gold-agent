@@ -35,8 +35,11 @@ Usage:
 """
 
 import logging
+from dotenv import load_dotenv, find_dotenv
 from src.scrapers.engine.base_scraper import BaseScraper
 from src.scrapers.engine.api_fetcher import APIFetcher
+
+load_dotenv(find_dotenv())
 
 logger = logging.getLogger(__name__)
 

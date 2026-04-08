@@ -62,8 +62,8 @@ Usage:
     Never call fetch() directly — always use run()
 """
 
-from dotenv import load_dotenv
-load_dotenv()
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
 
 import logging
 from src.scrapers.engine.base_scraper import BaseScraper

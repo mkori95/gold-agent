@@ -1702,5 +1702,11 @@ You (WhatsApp) → OpenClaw → Claude Code → GitHub branch → You approve
 *Next: OpenClaw setup + AWS deployment in parallel.*
 *Agent OS architecture finalised in AGENT_OS.md.*
 
-*Last updated: Session 13 — RapidAPI scraper built and partially tested. src/config/ deleted — single config/ at root. secrets_manager.py updated with RAPIDAPI_KEY. Tests 1-7 passing for all 10 locations. Dubai silver skipped — API data issue. Tests 8-15 crashing — fix next session. Next session: fix remaining tests, update SCRAPER_REGISTRY, disable goodreturns, wire real boto3 calls for DynamoDB and S3, sam build + sam deploy.*
+*Last updated: Session 14 — Test suite analysis complete. Found 4 blocking issues:*
+*1. SecretsManager.load() called at module import time — hits AWS before .env loads in test scope*
+*2. Test files can't see API keys — .env load order problem*
+*3. AWS credentials exposed in plain text in .env file — MUST ROTATE IMMEDIATELY*
+*4. consolidator_test triggers AWS call — needs lazy loading fix*
+
+*Next session: Rotate AWS credentials first (CRITICAL). Then fix test environment loading + lazy SecretsManager call.*
  

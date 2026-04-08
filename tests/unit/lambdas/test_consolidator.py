@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 """
 test_consolidator.py
 
@@ -25,6 +27,9 @@ What this tests:
 15. Failed scraper result handled gracefully
 16. GoldAPI.io fixture data loads correctly
 """
+
+from dotenv import load_dotenv
+load_dotenv()
 
 import sys
 import json

@@ -53,10 +53,6 @@ logger = logging.getLogger(__name__)
 
 from src.scrapers.engine.secrets_manager import SecretsManager
 
-# Load secrets from AWS Secrets Manager at startup
-# Cached for Lambda container lifetime — only fetches once
-SecretsManager.load()
-
 # Map source id → scraper class
 # Add new scrapers here as they are built
 SCRAPER_REGISTRY = {
@@ -103,6 +99,11 @@ class Consolidator:
             Dict with full pipeline result including snapshot,
             scraper results, and writer results.
         """
+
+        # Load secrets from AWS Secrets Manager (lazy load)
+        # Cached for Lambda container lifetime — only fetches once
+        # Skipped if .env keys are already in os.environ (local testing)
+        SecretsManager.load()
 
         started_at = datetime.now(timezone.utc)
         logger.info("Consolidator pipeline starting")
