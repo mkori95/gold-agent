@@ -10,21 +10,22 @@ price per metal from all sources.
 
 What this file does:
     1. Groups all price records by metal across all sources
-    2. Separates GoodReturns city rates from spot price records
+    2. Separates city rate records from spot price records
     3. Runs anomaly detection on all spot price records
     4. Runs trimmed mean on validated prices per metal
     5. Attaches INR prices using the provided INR rate
     6. Attaches karat prices from GoldAPI.io
     7. Attaches extra fields (MCX, IBJA, LBMA) from Metals.Dev
-    8. Attaches city rates from GoodReturns
+    8. Attaches city rates from RapidAPI / GoodReturns
     9. Returns merged metals dict
 
 INR rate is passed in explicitly by the consolidator —
 it is extracted from the MetalsDevScraper instance after run().
 
-GoodReturns records are identified by unit == "gram" —
-they go directly into city_rates{} and never enter the
-trimmed mean calculation.
+City rate record routing (never enter trimmed mean):
+    GoodReturns:  unit == "gram"    → gold city_rates via extra.city
+    RapidAPI gold:  unit == "gram_10" → gold city_rates via extra.location
+    RapidAPI silver: unit == "kg"    → silver city_rates via extra.location
 
 Usage:
     merger = Merger()
@@ -88,8 +89,9 @@ class Merger:
         # --------------------------------------------------------
         # Step 1 — collect all records grouped by metal
         # --------------------------------------------------------
-        spot_records_by_metal = self._group_spot_records(validated_results)
-        city_rates_by_city    = self._extract_city_rates(validated_results)
+        spot_records_by_metal  = self._group_spot_records(validated_results)
+        city_rates_by_city     = self._extract_city_rates(validated_results)
+        silver_city_rates      = self._extract_silver_city_rates(validated_results)
 
         # --------------------------------------------------------
         # Step 2 — collect extra fields per metal from all sources
@@ -111,6 +113,13 @@ class Merger:
                 )
                 continue
 
+            if metal == "gold":
+                city_rates = city_rates_by_city
+            elif metal == "silver":
+                city_rates = silver_city_rates
+            else:
+                city_rates = {}
+
             metal_result = self._build_metal_result(
                 metal=metal,
                 records=records,
@@ -118,7 +127,7 @@ class Merger:
                 usd_to_inr=usd_to_inr,
                 extra=extra_by_metal.get(metal, {}),
                 karats=karats_by_metal.get(metal, {}),
-                city_rates=city_rates_by_city if metal == "gold" else {}
+                city_rates=city_rates
             )
 
             if metal_result:
@@ -247,8 +256,11 @@ class Merger:
             source_id = result.get("source_id", "unknown")
 
             for record in result.get("data", []):
-                # Skip GoodReturns records — unit is "gram" not "troy_ounce"
-                if record.get("unit") == "gram":
+                # Skip city rate records — these go to city_rates{} not trimmed mean
+                # GoodReturns: unit == "gram"
+                # RapidAPI gold: unit == "gram_10"
+                # RapidAPI silver: unit == "kg"
+                if record.get("unit") in ("gram", "gram_10", "kg"):
                     continue
 
                 # Skip records with no USD price
@@ -276,48 +288,99 @@ class Merger:
         return records_by_metal
 
     # ============================================================
-    # Extract city rates from GoodReturns records
+    # Extract gold city rates from GoodReturns or RapidAPI records
     # ============================================================
     def _extract_city_rates(self, validated_results: list) -> dict:
         """
-        Extracts city-wise INR gold rates from GoodReturns records.
+        Extracts city-wise INR gold rates from city rate records.
 
-        GoodReturns records are identified by unit == "gram".
-        Each record has extra.city and extra.karat_prices.
+        Handles two sources:
+          GoodReturns: unit == "gram"    → extra.city + extra.karat_prices
+          RapidAPI:    unit == "gram_10" → extra.location + extra.karat_prices
 
         Args:
             validated_results: List of valid scraper result dicts
 
         Returns:
-            Dict of city → karat prices
-            e.g. {"mumbai": {"24K": 9780.0, "22K": 8950.0, "18K": 7340.0}}
+            Dict of city/location → karat prices
+            e.g. {"mumbai": {"24K": 139720.0, "22K": 128077.0, "18K": 104790.0}}
         """
 
         city_rates = {}
 
         for result in validated_results:
             for record in result.get("data", []):
-                if record.get("unit") != "gram":
-                    continue
+                unit  = record.get("unit")
+                metal = record.get("metal")
 
-                extra = record.get("extra", {})
-                city  = extra.get("city")
+                # GoodReturns: unit == "gram" (gold only)
+                if unit == "gram" and metal == "gold":
+                    extra = record.get("extra", {})
+                    city  = extra.get("city")
+                    if city:
+                        karat_prices = extra.get("karat_prices", {})
+                        if karat_prices:
+                            city_rates[city] = karat_prices
 
-                if not city:
-                    continue
-
-                karat_prices = extra.get("karat_prices", {})
-
-                if karat_prices:
-                    city_rates[city] = karat_prices
+                # RapidAPI: unit == "gram_10" (gold, per 10 grams)
+                elif unit == "gram_10" and metal == "gold":
+                    extra    = record.get("extra", {})
+                    location = extra.get("location")
+                    if location:
+                        karat_prices = extra.get("karat_prices", {})
+                        if karat_prices:
+                            city_rates[location] = karat_prices
 
         if city_rates:
             logger.info(
-                f"Extracted city rates for {len(city_rates)} cities: "
+                f"Extracted gold city rates for {len(city_rates)} locations: "
                 f"{list(city_rates.keys())}"
             )
 
         return city_rates
+
+    # ============================================================
+    # Extract silver city rates from RapidAPI records
+    # ============================================================
+    def _extract_silver_city_rates(self, validated_results: list) -> dict:
+        """
+        Extracts city-wise INR silver rates from RapidAPI records.
+
+        RapidAPI silver records: unit == "kg" → extra.location + extra.purity_prices
+
+        Args:
+            validated_results: List of valid scraper result dicts
+
+        Returns:
+            Dict of location → purity prices
+            e.g. {"mumbai": {"999 Fine": 225530.0, "925 Sterling": 208615.0}}
+        """
+
+        silver_city_rates = {}
+
+        for result in validated_results:
+            for record in result.get("data", []):
+                if record.get("unit") != "kg" or record.get("metal") != "silver":
+                    continue
+
+                extra    = record.get("extra", {})
+                location = extra.get("location")
+
+                if not location:
+                    continue
+
+                purity_prices = extra.get("purity_prices", {})
+
+                if purity_prices:
+                    silver_city_rates[location] = purity_prices
+
+        if silver_city_rates:
+            logger.info(
+                f"Extracted silver city rates for {len(silver_city_rates)} locations: "
+                f"{list(silver_city_rates.keys())}"
+            )
+
+        return silver_city_rates
 
     # ============================================================
     # Extract extra fields per metal from Metals.Dev records

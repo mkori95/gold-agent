@@ -60,10 +60,10 @@ SecretsManager.load()
 # Map source id → scraper class
 # Add new scrapers here as they are built
 SCRAPER_REGISTRY = {
-    "gold_api_com": "src.scrapers.sites.gold_api_com.GoldApiComScraper",
-    "metals_dev":   "src.scrapers.sites.metals_dev.MetalsDevScraper",
-    "goldapi_io":   "src.scrapers.sites.goldapi_io.GoldApiIoScraper",
-    "goodreturns":  "src.scrapers.sites.goodreturns.GoodReturnsScraper",
+    "gold_api_com":          "src.scrapers.sites.gold_api_com.GoldApiComScraper",
+    "metals_dev":            "src.scrapers.sites.metals_dev.MetalsDevScraper",
+    "goldapi_io":            "src.scrapers.sites.goldapi_io.GoldApiIoScraper",
+    "rapid_api_gold_silver": "src.scrapers.sites.rapid_api_gold_silver.RapidApiGoldSilverScraper",
 }
 
 

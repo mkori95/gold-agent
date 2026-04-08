@@ -3,22 +3,15 @@ s3_writer.py
 
 Writes consolidated price snapshot to S3 as JSON.
 
-Currently a STUB — logs what it would do but makes no
-real AWS calls. Real implementation added in Phase 1
-deployment when AWS infrastructure is ready.
-
 S3 path pattern:
-    /prices/{metal}/YYYY/MM/DD/HH:MM.json
-    e.g. /prices/gold/2026/03/01/14:00.json
+    prices/YYYY/MM/DD/HH:MM.json
+    e.g. prices/2026/03/01/14:00.json
 
 Also writes a latest.json for quick access:
-    /prices/latest.json
+    prices/latest.json
 
-Real implementation will:
-    - Serialise snapshot to JSON
-    - Write to S3 with timestamped path
-    - Write to S3 latest.json (overwrite)
-    - Set correct Content-Type header
+Bucket name is read from S3_BUCKET_NAME env var,
+defaulting to "gold-agent-prices".
 
 Usage:
     writer = S3Writer()
@@ -26,42 +19,45 @@ Usage:
 """
 
 import json
+import os
 import logging
 from datetime import datetime, timezone
 
+import boto3
+from botocore.exceptions import ClientError
+
 logger = logging.getLogger(__name__)
 
-# S3 bucket name — will be read from environment in real implementation
-S3_BUCKET = "gold-agent-prices"
-
-# S3 path prefix for price snapshots
-S3_PREFIX = "prices"
+S3_BUCKET  = os.environ.get("S3_BUCKET_NAME", "gold-agent-prices")
+S3_PREFIX  = "prices"
+AWS_REGION = os.environ.get("AWS_REGION", "ap-south-1")
 
 
 class S3Writer:
     """
     Writes consolidated snapshot to S3 as JSON.
 
-    STUB — no real AWS calls yet.
-    Real implementation added when AWS infrastructure is ready.
+    Writes two files per run:
+    1. Timestamped path — permanent historical record
+    2. prices/latest.json — always overwritten with most recent
     """
 
     def __init__(self):
         """
-        Initialises S3Writer.
-
-        Real implementation will initialise boto3 S3 client here:
-            import boto3
-            self.s3     = boto3.client("s3", region_name="ap-south-1")
-            self.bucket = os.environ.get("S3_BUCKET_NAME", S3_BUCKET)
+        Initialises S3Writer with boto3 S3 client.
         """
         self.bucket = S3_BUCKET
 
-        logger.info(
-            f"S3Writer initialised — "
-            f"bucket: {self.bucket} — "
-            f"[STUB — no real AWS connection]"
-        )
+        try:
+            self.s3 = boto3.client("s3", region_name=AWS_REGION)
+            logger.info(
+                f"S3Writer initialised — bucket: {self.bucket}"
+            )
+        except Exception as e:
+            self.s3 = None
+            logger.error(
+                f"S3Writer: boto3 init failed — {str(e)}"
+            )
 
     # ============================================================
     # Write full snapshot to S3
@@ -89,12 +85,18 @@ class S3Writer:
                 reason="empty snapshot"
             )
 
-        # Build the timestamped S3 path from snapshot_id
-        snapshot_id  = snapshot.get("snapshot_id", datetime.now(timezone.utc).isoformat())
+        if not self.s3:
+            logger.error("S3Writer: client not initialised — skipping write")
+            return self._build_result(
+                status="failed",
+                paths_written=[],
+                reason="S3 client not initialised"
+            )
+
+        snapshot_id      = snapshot.get("snapshot_id", datetime.now(timezone.utc).isoformat())
         timestamped_path = self._build_s3_path(snapshot_id)
         latest_path      = f"{S3_PREFIX}/latest.json"
 
-        # Serialise snapshot to JSON
         try:
             snapshot_json = json.dumps(snapshot, indent=2, default=str)
         except Exception as e:
@@ -127,12 +129,11 @@ class S3Writer:
 
         logger.info(
             f"S3Writer complete — "
-            f"{len(paths_written)} files written — "
-            f"[STUB]"
+            f"{len(paths_written)} files written to s3://{self.bucket}"
         )
 
         return self._build_result(
-            status="stub",
+            status="success",
             paths_written=paths_written,
             reason=None
         )
@@ -144,25 +145,22 @@ class S3Writer:
         """
         Writes content to a single S3 path.
 
-        Real implementation will call:
-            self.s3.put_object(
-                Bucket=self.bucket,
-                Key=path,
-                Body=content.encode("utf-8"),
-                ContentType="application/json"
-            )
-
         Args:
             path:    S3 key path
             content: JSON string to write
         """
 
-        # STUB — log what would be written
+        self.s3.put_object(
+            Bucket=self.bucket,
+            Key=path,
+            Body=content.encode("utf-8"),
+            ContentType="application/json"
+        )
+
         logger.info(
-            f"[STUB] Would write to S3 — "
-            f"bucket: {self.bucket} — "
-            f"path: {path} — "
-            f"size: {len(content)} bytes"
+            f"S3Writer wrote — "
+            f"s3://{self.bucket}/{path} — "
+            f"{len(content)} bytes"
         )
 
     # ============================================================
@@ -182,21 +180,18 @@ class S3Writer:
         """
 
         try:
-            # Parse snapshot_id as datetime
             dt = datetime.fromisoformat(
                 snapshot_id.replace("Z", "+00:00")
             )
-            path = (
+            return (
                 f"{S3_PREFIX}/"
                 f"{dt.year:04d}/"
                 f"{dt.month:02d}/"
                 f"{dt.day:02d}/"
                 f"{dt.hour:02d}:{dt.minute:02d}.json"
             )
-            return path
 
         except Exception:
-            # Fallback — use raw snapshot_id as filename
             safe_id = snapshot_id.replace(":", "-").replace("+", "-")
             return f"{S3_PREFIX}/{safe_id}.json"
 
@@ -213,7 +208,7 @@ class S3Writer:
         Builds standard result dict.
 
         Args:
-            status:        "stub" / "success" / "skipped" / "failed"
+            status:        "success" / "skipped" / "failed"
             paths_written: List of S3 paths written
             reason:        Reason if skipped or failed
 
