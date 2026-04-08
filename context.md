@@ -145,7 +145,7 @@ sources_count          ← number of sources
 source_prices          ← all individual raw prices preserved
 spread_percent         ← how far apart the sources were
 karats                 ← 24K, 22K, 18K prices in USD and INR
-city_rates             ← per gram INR per city from GoodReturns
+city_rates             ← per 10g INR per city from RapidAPI (gold) or per kg for silver
 extra                  ← mcx_gold, ibja_gold, lbma prices etc
 timestamp              ← when calculated
 ```
@@ -165,10 +165,11 @@ Sits on top of S3 /prices/ folder. Used for historical queries and dashboard cha
 | 1 | gold_api_com | gold_api_com.py | Gold, Silver, Platinum, Copper | Unlimited | ✅ Built & tested |
 | 2 | metals_dev | metals_dev.py | Gold, Silver, Platinum, Copper | 100/month | ✅ Built & tested |
 | 3 | goldapi_io | goldapi_io.py | Gold, Silver, Platinum | 100/month | ✅ Built & tested |
-| 4 | free_gold_api | free_gold_api.py | Gold (historical) | Unlimited | ❌ Disabled permanently |
-| 5 | goodreturns | goodreturns.py | Gold (city-wise INR) | Unlimited | ✅ Built & tested |
-| 6 | moneycontrol | — | MCX backup | Unlimited | ⏭️ Skipped — MCX already in Metals.Dev |
-| 7 | rapaport | — | Diamond index | Unlimited | ⏭️ Skipped — paywalled |
+| 4 | rapid_api_gold_silver | rapid_api_gold_silver.py | Gold + Silver city rates | 550k/month | ✅ Built & tested |
+| 5 | free_gold_api | free_gold_api.py | Gold (historical) | Unlimited | ❌ Disabled permanently |
+| 6 | goodreturns | goodreturns.py | Gold (city-wise INR) | Unlimited | ❌ Disabled — AWS IPs blocked by Cloudflare |
+| 7 | moneycontrol | — | MCX backup | Unlimited | ❌ Disabled — MCX data already in Metals.Dev |
+| 8 | rapaport | — | Diamond index | Unlimited | ❌ Disabled — paywalled |
 
 ### Why Sources Were Skipped
 - **moneycontrol** — MCX gold/silver data is already captured in `metals_dev.py` extra{} fields. Duplicate data, scraping risk not worth it.
@@ -182,9 +183,8 @@ Sits on top of S3 /prices/ folder. Used for historical queries and dashboard cha
 | Silver spot | gold_api_com ✅ metals_dev ✅ goldapi_io ✅ |
 | Platinum spot | gold_api_com ✅ metals_dev ✅ goldapi_io ✅ |
 | Copper spot | gold_api_com ✅ metals_dev ✅ |
-| Gold city rates (India) | rapid_api_gold_silver ⏳ building next |
-| Silver city rates (India) | rapid_api_gold_silver ⏳ building next |
-| Gold international rates | rapid_api_gold_silver ⏳ building next |
+| Gold city rates (India + International) | rapid_api_gold_silver ✅ |
+| Silver city rates (India + International) | rapid_api_gold_silver ✅ |
 
 ### Phase 4 Paid Sources (future — not building yet)
 | Source | Cost | Why |
@@ -1274,9 +1274,13 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 | .terraform/ | Added to .gitignore | Contains 725MB provider binary — never commit |
 | src/config/ removed | Deleted — config/ at root is included in SAM package automatically | Redundant duplication — .samignore does not exclude config/ |
 | RapidAPI retry logic | 3 retries with 2 second wait | Some locations timeout intermittently — retry is cleaner than delay |
-| Dubai silver | Skipped — API returns 0 | Known API data issue — our code correctly rejects zero prices |
+| Dubai silver | Warn not fail in test | API returns 0 for Dubai silver — known API data issue, correctly skipped by scraper |
 | Active locations | Driven by sources.json locations.active | To enable all 77 locations — update sources.json only, no code change |
 | APIFetcher timeout | Increased from 10s to 30s | RapidAPI endpoints occasionally slow to respond |
+| RapidAPI city rate routing | unit == "gram_10" → gold city_rates, unit == "kg" → silver city_rates | Merger identifies city-rate records by unit field — not source_id |
+| dynamo_writer.py | Real boto3 wired — table gold-agent-live-prices | Moved from stub to production — Decimal/str conversion required for DynamoDB |
+| s3_writer.py | Real boto3 wired — bucket gold-agent-prices | Moved from stub to production — put_object with ContentType application/json |
+| test_writers.py | boto3 mocked with MagicMock | Unit tests must run without AWS credentials — mock boto3.resource and boto3.client |
 ---
 
 ## 🧑‍💻 Developer Info
@@ -1295,82 +1299,42 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 ## 📍 Current Status
  
 **Phase:** Phase 1 — COMPLETE ✅
-AWS Setup — IN PROGRESS 🔄
+**AWS Setup — COMPLETE ✅**
+**Next: sam build + sam deploy, then Phase 2**
 
-### AWS Setup Status (Updated)
+### AWS Setup — All Done
 - ✅ AWS CLI installed and configured
-- ✅ IAM user gold-agent-dev created with correct permissions
+- ✅ IAM user gold-agent-dev, IAM role gold-agent-consolidator-role
 - ✅ Terraform and SAM CLI installed via Homebrew
-- ✅ S3 state bucket created — gold-agent-terraform-state
-- ✅ S3 prices bucket created — gold-agent-prices
-- ✅ DynamoDB tables created — gold-agent-live-prices, gold-agent-source-health, gold-agent-quota-tracker
-- ✅ Terraform modules for S3, DynamoDB, IAM done
-- ✅ IAM role created — gold-agent-consolidator-role
-- ✅ Secrets stored in AWS Secrets Manager — gold-agent/metals-dev-api-key, gold-agent/goldapi-io-key
-- ✅ secrets_manager.py built — fetches and caches secrets at Lambda startup
-- ✅ config_loader.py built — handles config file paths for local and Lambda
+- ✅ S3 state bucket — gold-agent-terraform-state
+- ✅ S3 prices bucket — gold-agent-prices
+- ✅ DynamoDB tables — gold-agent-live-prices, gold-agent-source-health, gold-agent-quota-tracker
+- ✅ Secrets Manager — gold-agent/metals-dev-api-key, gold-agent/goldapi-io-key, gold-agent/rapidapi-key
+- ✅ secrets_manager.py — fetches and caches secrets at Lambda startup
+- ✅ config_loader.py — handles config paths for local and Lambda
 - ✅ Lambda deployed — gold-agent-consolidator live in ap-south-1
 - ✅ Lambda tested — API sources working, spread warning 1.461% (normal)
-- ✅ GoodReturns blocked by AWS IP — expected, known limitation
-- ⏳ dynamo_writer.py — real boto3 calls not wired yet — NEXT
-- ⏳ s3_writer.py — real boto3 calls not wired yet
-- ⏳ GoodReturns — needs to be disabled in Lambda (wastes 173s timeout)
-- ⏳ EventBridge schedule — not set up yet
+- ✅ dynamo_writer.py — real boto3 calls wired (table: gold-agent-live-prices)
+- ✅ s3_writer.py — real boto3 calls wired (bucket: gold-agent-prices)
 
-### RapidAPI Scraper Status
-- ✅ RAPIDAPI_KEY added to .env locally
-- ✅ RAPIDAPI_KEY stored in AWS Secrets Manager (gold-agent/rapidapi-key)
-- ✅ secrets_manager.py updated — RAPIDAPI_KEY added to SECRETS_MAP
-- ✅ src/config/ deleted — consolidated to config/ at root only
-- ✅ config_loader.py updated — points to config/ at project root
-- ✅ template.yml updated — CONFIG_PATH env var removed
-- ✅ sources.json updated — locations split into active (10) + all_indian_cities + all_international
-- ✅ rapid_api_gold_silver.py built — retry logic, zero price rejection, currency detection
-- ✅ test_rapid_api_gold_silver.py built
-- ✅ Tests 1-7 passing — all 10 locations returning gold, 9/10 returning silver
-- ❌ Dubai silver — API returns 0 for Dubai silver — known API data issue, not our code
-- ⏳ Tests 8-15 — crashing after TEST 7 — fix next session
-- ⏳ Update SCRAPER_REGISTRY in consolidator.py
-- ⏳ Disable goodreturns in sources.json
-- ⏳ Wire real boto3 calls into dynamo_writer.py and s3_writer.py
-- ⏳ sam build + sam deploy
-- ⏳ Set up EventBridge schedule
+### RapidAPI Scraper — Complete
+- ✅ rapid_api_gold_silver.py — retry logic, zero price rejection, currency detection
+- ✅ test_rapid_api_gold_silver.py — all 15 tests passing
+- ✅ Dubai silver handled gracefully (API returns 0 — warning not failure)
+- ✅ SCRAPER_REGISTRY updated — rapid_api_gold_silver added, goodreturns removed
+- ✅ goodreturns disabled in sources.json (AWS IPs blocked by Cloudflare)
+- ✅ moneycontrol disabled (MCX data already in Metals.Dev)
+- ✅ rapaport disabled (paywalled)
+- ✅ merger.py updated — routes RapidAPI city rates to city_rates{}
+  - unit == "gram_10" (gold) → gold city_rates via extra.location
+  - unit == "kg" (silver) → silver city_rates via extra.location
 
 ### Next Immediate Tasks
-1. Fix test_rapid_api_gold_silver.py — crashing after TEST 7 — debug and fix
-2. Handle Dubai silver gracefully in TEST 7 — skip if API returns no data
-3. Update consolidator.py SCRAPER_REGISTRY — add rapid_api_gold_silver, remove goodreturns
-4. Disable goodreturns in sources.json — set enabled: false
-5. Wire dynamo_writer.py with real boto3 calls
-6. Wire s3_writer.py with real boto3 calls
-7. sam build + sam deploy
-8. Test Lambda end to end
-9. Set up EventBridge schedule
-
-### Files to create
-- src/scrapers/sites/rapid_api_gold_silver.py
-- tests/unit/scrapers/test_rapid_api_gold_silver.py
-
-### Files to modify
-- config/sources.json — add rapid_api_gold_silver, disable goodreturns
-- src/config/sources.json — same
-- src/lambdas/consolidator/consolidator.py — update SCRAPER_REGISTRY
-- src/scrapers/engine/secrets_manager.py — add RAPIDAPI_KEY
-- template.yml — no changes needed (secrets handled by secrets_manager)
-- .env — add RAPIDAPI_KEY locally
-
-### Files to retire (disable, not delete)
-- src/scrapers/sites/goodreturns.py — set enabled: false in sources.json
-- tests/unit/scrapers/test_goodreturns.py — keep for reference
-
-### Key architectural decisions made in Session 12
-- GoodReturns retired — AWS IPs blocked by Cloudflare permanently
-- RapidAPI gold-silver-rates-india chosen as replacement
-- $1.50/month for 550k requests — production grade
-- 77 locations — 71 Indian cities + 6 international
-- International coverage added — UAE, USA, UK, Australia, Saudi Arabia, Singapore
-- All scraping runs from Lambda — no GitHub Actions, no EC2, no proxies
-- Architecture is now fully serverless and production ready
+1. `sam build` — rebuild Lambda package with all changes
+2. `sam deploy` — redeploy Lambda with RapidAPI scraper and real boto3 writers
+3. Test Lambda end-to-end — confirm DynamoDB and S3 writes work
+4. Set up EventBridge schedule — run consolidator every 2 hours
+5. Begin Phase 2 planning — WhatsApp bot setup
  
 ---
  
@@ -1378,10 +1342,11 @@ AWS Setup — IN PROGRESS 🔄
 - ✅ gold_api_com.py — built, tested
 - ✅ metals_dev.py — built, tested
 - ✅ goldapi_io.py — built, tested
-- ✅ goodreturns.py — built, tested (28 cities, Cloudflare bypass)
+- ✅ rapid_api_gold_silver.py — built, tested (77 locations, retry, zero-price rejection)
+- ❌ goodreturns.py — disabled (AWS IPs blocked by Cloudflare)
 - ❌ free_gold_api.py — disabled permanently
-- ⏭️ moneycontrol.py — skipped (MCX covered by Metals.Dev)
-- ⏭️ rapaport.py — skipped (paywalled)
+- ❌ moneycontrol.py — disabled (MCX covered by Metals.Dev)
+- ❌ rapaport.py — disabled (paywalled)
  
 ### Engine — COMPLETE
 - ✅ base_scraper.py
@@ -1393,9 +1358,9 @@ AWS Setup — IN PROGRESS 🔄
 - ✅ trimmed_mean.py — unit tested (11 tests passing)
 - ✅ anomaly_detector.py — unit tested (15 tests passing)
 - ✅ validator.py — unit tested (14 tests passing)
-- ✅ merger.py — unit tested (13 tests passing)
-- ✅ dynamo_writer.py — stub, unit tested (6 tests passing)
-- ✅ s3_writer.py — stub, unit tested (6 tests passing)
+- ✅ merger.py — unit tested (13 tests passing) — handles RapidAPI city rates
+- ✅ dynamo_writer.py — real boto3 wired (table: gold-agent-live-prices)
+- ✅ s3_writer.py — real boto3 wired (bucket: gold-agent-prices)
 - ✅ consolidator.py — unit tested (16 tests passing)
 - ✅ handler.py — thin Lambda wrapper
  
@@ -1404,8 +1369,9 @@ AWS Setup — IN PROGRESS 🔄
 - ✅ tests/unit/lambdas/test_anomaly_detector.py
 - ✅ tests/unit/lambdas/test_validator.py
 - ✅ tests/unit/lambdas/test_merger.py
-- ✅ tests/unit/lambdas/test_writers.py
+- ✅ tests/unit/lambdas/test_writers.py — boto3 mocked, checks success status
 - ✅ tests/unit/lambdas/test_consolidator.py
+- ✅ tests/unit/scrapers/test_rapid_api_gold_silver.py — all 15 tests passing
 - ✅ End-to-end: python src/lambdas/consolidator/consolidator.py — status 200
  
 ### Fixtures — FILLED
@@ -1449,16 +1415,6 @@ AWS Setup — IN PROGRESS 🔄
 - AWS CLI not yet installed — first task in AWS session
 - Terraform beginner — will be guided step by step
 ---
- 
-### Next Immediate Tasks
- 
-**Step 1 — AWS Setup (in progress)**
-- ✅ S3 buckets created
-- ✅ DynamoDB tables created
-- ⏳ IAM roles — next session starting point
-- ⏳ Lambda function
-- ⏳ EventBridge schedule
-- ⏳ Wire dynamo_writer.py and s3_writer.py with real boto3 calls
 
 **Step 2 — Phase 2: WhatsApp Bot**
 - WhatsApp Business API setup
@@ -1466,37 +1422,7 @@ AWS Setup — IN PROGRESS 🔄
 - whatsapp-handler Lambda
 - conversation Lambda
 - alert-checker Lambda
- 
----
- 
-# ============================================================
-# ADD these rows to the Key Decisions table:
-# ============================================================
- 
-| Trimmed mean for 3 sources | Same rule as 4+ (drop highest+lowest) | Simpler — one consistent rule, math identical to median |
-| Validated source count | Count post-anomaly-detection only | Prevents false high confidence from rejected prices |
-| Spread thresholds | <1% normal, 1-2% warn, >2% flag | Catches diverging sources without false positives |
-| Fixtures | mock_goldapi_response.json + mock_dynamo_tables.json | Realistic test data, closer to production |
-| Consolidator testing | Mock _run_scrapers with patch.object | No API calls in unit tests, fast and deterministic |
-| AWS infrastructure | Terraform for infra, SAM optional for Lambda deploy | Industry standard, handles all 18+ services cleanly |
-| AWS setup order | After Phase 1 local complete, before Phase 2 | Need live data pipeline before building WhatsApp bot |
- 
----
- 
-# ============================================================
-# UPDATE the Consolidator Testing Approach section:
-# ============================================================
- 
-### 7. Consolidator Testing Approach
- 
-- Written as standalone Python class — testable locally like all scrapers
-- Each consolidator file built and unit tested independently with mock data
-- Test order: trimmed_mean → anomaly_detector → validator → merger → writers → consolidator
-- Unit tests use patch.object to mock _run_scrapers — no live API calls
-- End-to-end test: python src/lambdas/consolidator/consolidator.py — makes real API calls
-- Thin Lambda wrapper in handler.py — 5 lines of real logic
-- All 16 unit tests passing + end-to-end returning status 200
- 
+
 ### 8. AWS Infrastructure Approach
  
 **Two tools, two jobs:**

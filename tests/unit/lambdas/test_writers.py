@@ -1,7 +1,11 @@
 """
 test_writers.py
 
-Unit tests for DynamoWriter and S3Writer stubs.
+Unit tests for DynamoWriter and S3Writer.
+
+boto3 calls are mocked so these tests run without AWS credentials.
+For a real end-to-end write test, run the consolidator directly:
+    python src/lambdas/consolidator/consolidator.py
 
 IMPORTANT — Always run this from project root:
     python tests/unit/lambdas/test_writers.py
@@ -9,15 +13,15 @@ IMPORTANT — Always run this from project root:
 What this tests:
 --- DynamoWriter ---
 1.  Initialises without errors
-2.  write() returns stub status
+2.  write() returns success status
 3.  write() returns correct records_written count
 4.  write() handles empty snapshot gracefully
-5.  write() handles snapshot with no metals gracefully
+5.  write() handles None gracefully
 6.  Result has all required fields
 
 --- S3Writer ---
 7.  Initialises without errors
-8.  write() returns stub status
+8.  write() returns success status
 9.  write() writes 2 paths — timestamped + latest.json
 10. write() handles empty snapshot gracefully
 11. S3 path built correctly from snapshot_id
@@ -27,6 +31,7 @@ What this tests:
 import sys
 import logging
 from datetime import datetime, timezone
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, ".")
 
@@ -86,9 +91,9 @@ def mock_snapshot():
                     "18K": {"price_usd": 2326.13, "price_inr": 211590.0}
                 },
                 "city_rates": {
-                    "mumbai":  {"24K": 9780.0, "22K": 8950.0, "18K": 7340.0},
-                    "delhi":   {"24K": 9760.0, "22K": 8930.0, "18K": 7320.0},
-                    "chennai": {"24K": 9790.0, "22K": 8960.0, "18K": 7350.0}
+                    "mumbai":  {"24K": 139720.0, "22K": 128077.0, "18K": 104790.0},
+                    "delhi":   {"24K": 139500.0, "22K": 127900.0, "18K": 104600.0},
+                    "chennai": {"24K": 139800.0, "22K": 128100.0, "18K": 104850.0}
                 },
                 "extra": {
                     "mcx_gold":     3250.00,
@@ -112,7 +117,9 @@ def mock_snapshot():
                 "spread_percent": 0.77,
                 "spread_flagged": False,
                 "karats":         {},
-                "city_rates":     {},
+                "city_rates":     {
+                    "mumbai": {"999 Fine": 225530.0, "925 Sterling": 208615.0}
+                },
                 "extra":          {}
             }
         }
@@ -131,30 +138,46 @@ section("DYNAMO WRITER TESTS")
 # ============================================================
 section("TEST 1 — DynamoWriter initialises without errors")
 
-try:
+with patch("boto3.resource") as mock_resource:
+    mock_table = MagicMock()
+    mock_resource.return_value.Table.return_value = mock_table
+
+    try:
+        dynamo_writer = DynamoWriter()
+        passed(f"DynamoWriter initialised — table: {dynamo_writer.table_name}")
+    except Exception as e:
+        failed(f"DynamoWriter failed to initialise — {str(e)}")
+
+# ============================================================
+# TEST 2 — write() returns success status
+# ============================================================
+section("TEST 2 — write() returns success status")
+
+with patch("boto3.resource") as mock_resource:
+    mock_table = MagicMock()
+    mock_table.put_item.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+    mock_resource.return_value.Table.return_value = mock_table
+
     dynamo_writer = DynamoWriter()
-    passed(f"DynamoWriter initialised — table: {dynamo_writer.table_name}")
-except Exception as e:
-    failed(f"DynamoWriter failed to initialise — {str(e)}")
+    result = dynamo_writer.write(mock_snapshot())
 
-# ============================================================
-# TEST 2 — write() returns stub status
-# ============================================================
-section("TEST 2 — write() returns stub status")
-
-result = dynamo_writer.write(mock_snapshot())
-
-if result["status"] == "stub":
-    passed("write() returned status 'stub'")
+if result["status"] == "success":
+    passed("write() returned status 'success'")
 else:
-    failed(f"Expected status 'stub' — got '{result['status']}'")
+    failed(f"Expected status 'success' — got '{result['status']}'")
 
 # ============================================================
 # TEST 3 — write() returns correct records_written count
 # ============================================================
 section("TEST 3 — write() records_written count")
 
-result = dynamo_writer.write(mock_snapshot())
+with patch("boto3.resource") as mock_resource:
+    mock_table = MagicMock()
+    mock_table.put_item.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+    mock_resource.return_value.Table.return_value = mock_table
+
+    dynamo_writer = DynamoWriter()
+    result = dynamo_writer.write(mock_snapshot())
 
 # Snapshot has 2 metals — gold and silver
 if result["records_written"] == 2:
@@ -167,7 +190,12 @@ else:
 # ============================================================
 section("TEST 4 — write() handles empty snapshot gracefully")
 
-result = dynamo_writer.write({})
+with patch("boto3.resource") as mock_resource:
+    mock_table = MagicMock()
+    mock_resource.return_value.Table.return_value = mock_table
+
+    dynamo_writer = DynamoWriter()
+    result = dynamo_writer.write({})
 
 if result["status"] == "skipped":
     passed("Empty snapshot — status 'skipped'")
@@ -184,7 +212,12 @@ else:
 # ============================================================
 section("TEST 5 — write() handles None gracefully")
 
-result = dynamo_writer.write(None)
+with patch("boto3.resource") as mock_resource:
+    mock_table = MagicMock()
+    mock_resource.return_value.Table.return_value = mock_table
+
+    dynamo_writer = DynamoWriter()
+    result = dynamo_writer.write(None)
 
 if result["status"] == "skipped":
     passed("None snapshot — status 'skipped'")
@@ -196,7 +229,13 @@ else:
 # ============================================================
 section("TEST 6 — DynamoWriter result has required fields")
 
-result = dynamo_writer.write(mock_snapshot())
+with patch("boto3.resource") as mock_resource:
+    mock_table = MagicMock()
+    mock_table.put_item.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+    mock_resource.return_value.Table.return_value = mock_table
+
+    dynamo_writer = DynamoWriter()
+    result = dynamo_writer.write(mock_snapshot())
 
 required_fields = ["status", "table", "records_written", "reason", "written_at"]
 
@@ -219,30 +258,46 @@ section("S3 WRITER TESTS")
 # ============================================================
 section("TEST 7 — S3Writer initialises without errors")
 
-try:
+with patch("boto3.client") as mock_client:
+    mock_s3 = MagicMock()
+    mock_client.return_value = mock_s3
+
+    try:
+        s3_writer = S3Writer()
+        passed(f"S3Writer initialised — bucket: {s3_writer.bucket}")
+    except Exception as e:
+        failed(f"S3Writer failed to initialise — {str(e)}")
+
+# ============================================================
+# TEST 8 — write() returns success status
+# ============================================================
+section("TEST 8 — write() returns success status")
+
+with patch("boto3.client") as mock_client:
+    mock_s3 = MagicMock()
+    mock_s3.put_object.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+    mock_client.return_value = mock_s3
+
     s3_writer = S3Writer()
-    passed(f"S3Writer initialised — bucket: {s3_writer.bucket}")
-except Exception as e:
-    failed(f"S3Writer failed to initialise — {str(e)}")
+    result = s3_writer.write(mock_snapshot())
 
-# ============================================================
-# TEST 8 — write() returns stub status
-# ============================================================
-section("TEST 8 — write() returns stub status")
-
-result = s3_writer.write(mock_snapshot())
-
-if result["status"] == "stub":
-    passed("write() returned status 'stub'")
+if result["status"] == "success":
+    passed("write() returned status 'success'")
 else:
-    failed(f"Expected status 'stub' — got '{result['status']}'")
+    failed(f"Expected status 'success' — got '{result['status']}'")
 
 # ============================================================
 # TEST 9 — write() writes 2 paths — timestamped + latest.json
 # ============================================================
 section("TEST 9 — write() writes 2 paths")
 
-result = s3_writer.write(mock_snapshot())
+with patch("boto3.client") as mock_client:
+    mock_s3 = MagicMock()
+    mock_s3.put_object.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+    mock_client.return_value = mock_s3
+
+    s3_writer = S3Writer()
+    result = s3_writer.write(mock_snapshot())
 
 if result["files_count"] == 2:
     passed(f"files_count = 2")
@@ -269,7 +324,12 @@ else:
 # ============================================================
 section("TEST 10 — write() handles empty snapshot gracefully")
 
-result = s3_writer.write({})
+with patch("boto3.client") as mock_client:
+    mock_s3 = MagicMock()
+    mock_client.return_value = mock_s3
+
+    s3_writer = S3Writer()
+    result = s3_writer.write({})
 
 if result["status"] == "skipped":
     passed("Empty snapshot — status 'skipped'")
@@ -286,10 +346,13 @@ else:
 # ============================================================
 section("TEST 11 — S3 path built correctly from snapshot_id")
 
-snapshot_id = "2026-03-01T14:00:00+00:00"
+snapshot_id   = "2026-03-01T14:00:00+00:00"
 expected_path = "prices/2026/03/01/14:00.json"
 
-s3_writer_instance = S3Writer()
+with patch("boto3.client") as mock_client:
+    mock_client.return_value = MagicMock()
+    s3_writer_instance = S3Writer()
+
 actual_path = s3_writer_instance._build_s3_path(snapshot_id)
 
 if actual_path == expected_path:
@@ -302,7 +365,13 @@ else:
 # ============================================================
 section("TEST 12 — S3Writer result has required fields")
 
-result = s3_writer.write(mock_snapshot())
+with patch("boto3.client") as mock_client:
+    mock_s3 = MagicMock()
+    mock_s3.put_object.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+    mock_client.return_value = mock_s3
+
+    s3_writer = S3Writer()
+    result = s3_writer.write(mock_snapshot())
 
 required_fields = ["status", "bucket", "paths_written", "files_count", "reason", "written_at"]
 
@@ -317,6 +386,7 @@ for field in required_fields:
 # ============================================================
 section("ALL TESTS PASSED ✅")
 print()
-print("  DynamoWriter and S3Writer stubs working correctly.")
-print("  Safe to proceed to consolidator.py")
+print("  DynamoWriter and S3Writer working correctly.")
+print("  boto3 calls mocked — unit tests pass without AWS credentials.")
+print("  For real write test: python src/lambdas/consolidator/consolidator.py")
 print()

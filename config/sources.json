@@ -365,8 +365,8 @@
       "url": "https://www.goodreturns.in",
       "type": "scraper",
       "priority": 3,
-      "enabled": true,
-      "health_status": "healthy",
+      "enabled": false,
+      "health_status": "disabled",
       "consecutive_failures": 0,
       "metals": [
         "gold",
@@ -442,8 +442,8 @@
       "url": "https://www.moneycontrol.com",
       "type": "scraper",
       "priority": 3,
-      "enabled": true,
-      "health_status": "healthy",
+      "enabled": false,
+      "health_status": "disabled",
       "consecutive_failures": 0,
       "metals": [
         "gold",
@@ -489,8 +489,8 @@
       "url": "https://www.rapaport.com",
       "type": "scraper",
       "priority": 3,
-      "enabled": true,
-      "health_status": "healthy",
+      "enabled": false,
+      "health_status": "disabled",
       "consecutive_failures": 0,
       "metals": [
         "diamond"
