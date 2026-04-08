@@ -1606,7 +1606,101 @@ This is the standard split used by real engineering teams — Terraform owns the
 - Order: S3 bucket → DynamoDB tables → IAM roles → Lambda → EventBridge
 - Then wire dynamo_writer.py and s3_writer.py with real boto3 calls
 
+# CONTEXT.md — Final Session 9 Patch
+# Apply ALL of these on top of previous session 9 updates
 
+# ============================================================
+# UPDATE Current Status section — add this at the top:
+# ============================================================
+
+## 🛠️ Tools & Subscriptions (Updated Session 9)
+
+| Tool | Status | Notes |
+|---|---|---|
+| Claude Pro | ✅ Active | Covers Claude Code + OpenClaw brain |
+| Claude Code | ✅ Installed | On MacBook + Mac Mini |
+| Claude Cowork | ✅ Available | Comes with Pro |
+| Mac Mini | ✅ Ready | 16GB RAM, OpenClaw to be installed |
+| AWS Credits | ✅ $220 available | Valid until August 2026 |
+| OpenClaw | ⏳ To install | Mac Mini orchestrator |
+| Mission Control | ⏳ To install | Agent dashboard |
+| Hermes | ❌ Deferred | Revisit in 1 month if needed |
+| AWS Bedrock | ❌ Not needed | Claude Pro covers agent brain |
+
+# ============================================================
+# ADD to Key Decisions table:
+# ============================================================
+
+| Claude Pro | Subscribed | Unlocks Claude Code, covers OpenClaw brain, no Bedrock needed |
+| OpenClaw vs Hermes | OpenClaw chosen | Simpler, works with Claude Pro natively, Claude Code integration built in |
+| Hermes deferred | Not using now | Revisit in 1 month if OpenClaw memory insufficient |
+| Bedrock for agents | Not needed | Claude Pro subscription used by OpenClaw via OAuth |
+| Agent architecture | OpenClaw + Claude Code only | No separate dev/test/git agents — Claude Code handles all coding natively |
+| Mac Mini | 16GB RAM — ready | OpenClaw runs 24/7 as system service |
+| AWS credits expiry | August 2026 | $220 available, ~12 months runway at $18/month burn rate |
+| Mission Control | builderz-labs/mission-control | Dashboard for agent ops, task approvals, cost monitoring |
+
+# ============================================================
+# ADD new section — Agent OS:
+# ============================================================
+
+### 9. Agent OS — Personal AI Development Studio
+
+**Status:** Architecture finalised. Setup in next session.
+**Full details:** See AGENT_OS.md in repo root.
+
+**Stack:**
+- OpenClaw on Mac Mini (orchestrator, 24/7)
+- Claude Pro as brain (via existing subscription, no extra cost)
+- Claude Code as coding hands (writes, tests, pushes)
+- Mission Control as dashboard (localhost:3000)
+- WhatsApp as communication interface
+
+**How it works:**
+```
+You (WhatsApp) → OpenClaw → Claude Code → GitHub branch → You approve
+```
+
+**Setup time:** ~2.5 hours, same day.
+
+**Rules:**
+- OpenClaw reads CONTEXT.md before every task
+- Never deploys to AWS without Manikanta approval
+- Never commits to main — always feature branch
+- Daily 8AM IST briefing via WhatsApp
+
+# ============================================================
+# UPDATE Next Immediate Tasks:
+# ============================================================
+
+## 📋 Next Session Tasks (Priority Order)
+
+1. **OpenClaw setup on Mac Mini** (2.5 hours)
+   - Install + WhatsApp gateway
+   - Feed CONTEXT.md as skill
+   - Install Mission Control
+   - Test: "run all tests in gold-agent"
+
+2. **AWS Setup** (parallel track)
+   - Install AWS CLI on Mac
+   - Terraform for infrastructure
+   - Deploy consolidator Lambda
+   - Wire dynamo_writer + s3_writer with real boto3
+   - EventBridge schedule (hourly)
+
+3. **Phase 2 WhatsApp bot** (after AWS live)
+   - agent-brain Lambda
+   - whatsapp-handler Lambda
+   - alert-checker Lambda
+
+# ============================================================
+# Final status line:
+# ============================================================
+
+*Last updated: Session 9 FINAL*
+*Phase 1 complete locally. Claude Pro active. Mac Mini ready.*
+*Next: OpenClaw setup + AWS deployment in parallel.*
+*Agent OS architecture finalised in AGENT_OS.md.*
 
 *Last updated: Session 13 — RapidAPI scraper built and partially tested. src/config/ deleted — single config/ at root. secrets_manager.py updated with RAPIDAPI_KEY. Tests 1-7 passing for all 10 locations. Dubai silver skipped — API data issue. Tests 8-15 crashing — fix next session. Next session: fix remaining tests, update SCRAPER_REGISTRY, disable goodreturns, wire real boto3 calls for DynamoDB and S3, sam build + sam deploy.*
  
