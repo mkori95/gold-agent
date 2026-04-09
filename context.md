@@ -1298,10 +1298,11 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 
 ## 📍 Current Status
 
-**Phase 1 — COMPLETE ✅**
+**Phase 1 — 100% COMPLETE ✅**
 **AWS Setup — COMPLETE ✅**
-**Code Review + End-to-End Test — COMPLETE ✅**
-**Next: `sam build` + `sam deploy`, then EventBridge schedule, then Phase 2**
+**sam build + sam deploy — COMPLETE ✅**
+**EventBridge schedule — COMPLETE ✅ (daily 6AM IST)**
+**Next: Phase 2 — WhatsApp Bot**
 
 ### AWS Infrastructure — All Done
 - ✅ AWS CLI installed and configured (gold-agent-dev IAM user)
@@ -1370,21 +1371,42 @@ Status: success — Duration: 50s
 - ✅ PR open at https://github.com/mkori95/gold-agent/pull/new/claude/laughing-banzai
 - ⏳ PR not yet merged
 
-### Next Immediate Tasks
-1. **`sam build`** — rebuild Lambda package from worktree with all session 14 changes
-   ```bash
-   cd /path/to/gold-agent/.claude/worktrees/laughing-banzai
-   source /path/to/gold-agent/venv/bin/activate
-   sam build
-   ```
-2. **`sam deploy`** — redeploy Lambda to ap-south-1
-   ```bash
-   sam deploy --guided
-   ```
-   When prompted: Stack=`gold-agent`, Region=`ap-south-1`, Allow IAM=`N` (role already exists)
-3. **Test Lambda** — invoke directly from AWS console or CLI, confirm DynamoDB + S3 writes
-4. **EventBridge schedule** — set up cron to run consolidator every 2 hours
-5. **Phase 2** — WhatsApp Business API setup → agent-brain → whatsapp-handler → conversation → alert-checker
+### sam build + sam deploy — COMPLETE ✅
+- Rebuilt Lambda with Python 3.12 venv (upgraded from 3.9)
+- All dependencies packaged: boto3, curl_cffi, beautifulsoup4, requests, python-dotenv, lxml
+- `sam deploy --guided` — updated stack `gold-agent` in ap-south-1
+- Lambda invoked and tested — status 200, 42 seconds, all 4 metals written
+
+### Lambda Test Results (post-deploy)
+```
+rapid_api_gold_silver ✅ — 19 records (10 gold, 9 silver, Dubai silver skipped)
+gold_api_com          ✅ — 4 metals
+metals_dev            ✅ — 4 metals + INR rate 1 USD = ₹92.61
+goldapi_io            ✅ — 3 metals + karat prices
+
+GOLD:     $4,717.20 — ₹4,36,843 — confidence: high  — spread: 0.07%
+SILVER:   $73.66    — ₹6,821    — confidence: high  — spread: 0.16%
+PLATINUM: $2,023.82 — ₹1,87,419 — confidence: high  — spread: 0.16%
+COPPER:   $5.70     — ₹528      — confidence: medium — spread: 2.29% ⚠️ flagged
+
+DynamoDB: 4/4 metals written to gold-agent-live-prices ✅
+S3:       prices/2026/04/09/01:10.json + prices/latest.json ✅
+```
+
+### EventBridge Schedule — COMPLETE ✅
+- Rule: `gold-agent-daily-consolidator`
+- Schedule: `cron(30 0 * * ? *)` — every day at 6:00 AM IST (00:30 UTC)
+- State: ENABLED
+- Target: gold-agent-consolidator Lambda
+- Decision: once daily (not every 2 hours) — conserves API quota for Phase 1
+
+### Next Immediate Tasks — Phase 2
+1. **WhatsApp Business API setup** — create Meta Business account, get phone number, get WHATSAPP_TOKEN + WHATSAPP_PHONE_ID
+2. **Submit 7 WhatsApp templates** for approval (welcome, price_alert, weekly_digest, festival_advisory, daily_morning_rate, price_drop_alert, price_rise_alert)
+3. **whatsapp-handler Lambda** — receives webhooks, parses messages, routes intents
+4. **agent-brain Lambda** — calls Claude API, builds context from DynamoDB, generates response
+5. **conversation Lambda** — price queries, trend explanations, festival advice
+6. **alert-checker Lambda** — hourly threshold check, sends alerts via WhatsApp
  
 ---
 
