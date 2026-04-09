@@ -1297,47 +1297,119 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 ---
 
 ## 📍 Current Status
- 
-**Phase:** Phase 1 — COMPLETE ✅
-**AWS Setup — COMPLETE ✅**
-**Next: sam build + sam deploy, then Phase 2**
 
-### AWS Setup — All Done
-- ✅ AWS CLI installed and configured
-- ✅ IAM user gold-agent-dev, IAM role gold-agent-consolidator-role
-- ✅ Terraform and SAM CLI installed via Homebrew
+**Phase 1 — 100% COMPLETE ✅**
+**AWS Setup — COMPLETE ✅**
+**sam build + sam deploy — COMPLETE ✅**
+**EventBridge schedule — COMPLETE ✅ (daily 6AM IST)**
+**Next: Phase 2 — WhatsApp Bot**
+
+### AWS Infrastructure — All Done
+- ✅ AWS CLI installed and configured (gold-agent-dev IAM user)
+- ✅ IAM role — gold-agent-consolidator-role
+- ✅ Terraform + SAM CLI installed via Homebrew
 - ✅ S3 state bucket — gold-agent-terraform-state
 - ✅ S3 prices bucket — gold-agent-prices
 - ✅ DynamoDB tables — gold-agent-live-prices, gold-agent-source-health, gold-agent-quota-tracker
 - ✅ Secrets Manager — gold-agent/metals-dev-api-key, gold-agent/goldapi-io-key, gold-agent/rapidapi-key
 - ✅ secrets_manager.py — fetches and caches secrets at Lambda startup
 - ✅ config_loader.py — handles config paths for local and Lambda
-- ✅ Lambda deployed — gold-agent-consolidator live in ap-south-1
-- ✅ Lambda tested — API sources working, spread warning 1.461% (normal)
-- ✅ dynamo_writer.py — real boto3 calls wired (table: gold-agent-live-prices)
-- ✅ s3_writer.py — real boto3 calls wired (bucket: gold-agent-prices)
+- ✅ Lambda deployed — gold-agent-consolidator live in ap-south-1 (previous version)
 
-### RapidAPI Scraper — Complete
-- ✅ rapid_api_gold_silver.py — retry logic, zero price rejection, currency detection
-- ✅ test_rapid_api_gold_silver.py — all 15 tests passing
-- ✅ Dubai silver handled gracefully (API returns 0 — warning not failure)
-- ✅ SCRAPER_REGISTRY updated — rapid_api_gold_silver added, goodreturns removed
-- ✅ goodreturns disabled in sources.json (AWS IPs blocked by Cloudflare)
-- ✅ moneycontrol disabled (MCX data already in Metals.Dev)
-- ✅ rapaport disabled (paywalled)
-- ✅ merger.py updated — routes RapidAPI city rates to city_rates{}
-  - unit == "gram_10" (gold) → gold city_rates via extra.location
-  - unit == "kg" (silver) → silver city_rates via extra.location
+### Code Review + Fixes (Session 14) — All Done
+Full code review was done. All issues found and fixed:
 
-### Next Immediate Tasks
-1. `sam build` — rebuild Lambda package with all changes
-2. `sam deploy` — redeploy Lambda with RapidAPI scraper and real boto3 writers
-3. Test Lambda end-to-end — confirm DynamoDB and S3 writes work
-4. Set up EventBridge schedule — run consolidator every 2 hours
-5. Begin Phase 2 planning — WhatsApp bot setup
+- ✅ consolidator.py — `rapid_api_gold_silver` added to SCRAPER_REGISTRY, `goodreturns` removed
+- ✅ sources.json — `goodreturns` disabled (Cloudflare blocks AWS IPs), `moneycontrol` disabled (empty file, MCX in Metals.Dev), `rapaport` disabled (empty file, paywalled)
+- ✅ merger.py — RapidAPI city rates now routed correctly to `city_rates{}`
+  - `unit == "gram_10"` (gold) → gold city_rates via `extra.location`
+  - `unit == "kg"` (silver) → new `_extract_silver_city_rates()` via `extra.location`
+  - Previously: all RapidAPI records were silently dropped (no USD price, non-troy-ounce unit)
+- ✅ dynamo_writer.py — real boto3 wired (was logging stub) — writes to `gold-agent-live-prices`
+- ✅ s3_writer.py — real boto3 wired (was logging stub) — writes to `gold-agent-prices`
+  - Bug fixed: `os.environ.get("S3_BUCKET_NAME", default)` returns `""` if var set to blank in `.env` — changed to `or` fallback
+- ✅ test_writers.py — boto3 mocked with MagicMock, checks `success` status (not `stub`)
+- ✅ test_rapid_api_gold_silver.py — TEST 7 warns on Dubai silver instead of crashing (API returns 0)
+
+### End-to-End Test Results (Session 14) — PASSING ✅
+Run locally with real scrapers + real AWS writes:
+
+```
+Scrapers initialised: [rapid_api_gold_silver, gold_api_com, metals_dev, goldapi_io]
+goodreturns / moneycontrol / rapaport — Disabled in sources.json — skipping
+
+RapidAPI:  19 records — 10 gold locations ✅, 9 silver locations ✅, Dubai silver skipped (0 from API)
+gold_api_com:  4 metals ✅
+metals_dev:    4 metals ✅ — INR rate: 1 USD = ₹92.39
+goldapi_io:    3 metals ✅ — karat prices included
+
+GOLD consensus:     $4,719.80 — ₹4,35,609 — confidence: high  — spread: 0.03%
+SILVER consensus:   $74.15    — ₹6,843    — confidence: high  — spread: 0.23%
+PLATINUM consensus: $2,032.94 — ₹1,87,628 — confidence: high  — spread: 0.38%
+COPPER consensus:   $5.72     — ₹528      — confidence: medium — spread: 2.31% (flagged)
+
+DynamoDB: 4/4 metals written to gold-agent-live-prices ✅
+S3:       prices/2026/04/08/22:56.json (6995 bytes) + prices/latest.json ✅
+
+Status: success — Duration: 50s
+```
+
+### All Tests Passing
+- ✅ tests/unit/lambdas/test_trimmed_mean.py
+- ✅ tests/unit/lambdas/test_anomaly_detector.py
+- ✅ tests/unit/lambdas/test_validator.py
+- ✅ tests/unit/lambdas/test_merger.py
+- ✅ tests/unit/lambdas/test_writers.py — boto3 mocked, success status
+- ✅ tests/unit/lambdas/test_consolidator.py
+- ✅ tests/unit/scrapers/test_rapid_api_gold_silver.py — all 15 tests passing (live API)
+- ✅ tests/unit/scrapers/test_gold_api_com.py
+- ✅ tests/unit/scrapers/test_metals_dev.py
+- ✅ tests/unit/scrapers/test_goldapi_io.py
+
+### Git — Branch: claude/laughing-banzai
+- ✅ All changes committed and pushed
+- ✅ PR open at https://github.com/mkori95/gold-agent/pull/new/claude/laughing-banzai
+- ⏳ PR not yet merged
+
+### sam build + sam deploy — COMPLETE ✅
+- Rebuilt Lambda with Python 3.12 venv (upgraded from 3.9)
+- All dependencies packaged: boto3, curl_cffi, beautifulsoup4, requests, python-dotenv, lxml
+- `sam deploy --guided` — updated stack `gold-agent` in ap-south-1
+- Lambda invoked and tested — status 200, 42 seconds, all 4 metals written
+
+### Lambda Test Results (post-deploy)
+```
+rapid_api_gold_silver ✅ — 19 records (10 gold, 9 silver, Dubai silver skipped)
+gold_api_com          ✅ — 4 metals
+metals_dev            ✅ — 4 metals + INR rate 1 USD = ₹92.61
+goldapi_io            ✅ — 3 metals + karat prices
+
+GOLD:     $4,717.20 — ₹4,36,843 — confidence: high  — spread: 0.07%
+SILVER:   $73.66    — ₹6,821    — confidence: high  — spread: 0.16%
+PLATINUM: $2,023.82 — ₹1,87,419 — confidence: high  — spread: 0.16%
+COPPER:   $5.70     — ₹528      — confidence: medium — spread: 2.29% ⚠️ flagged
+
+DynamoDB: 4/4 metals written to gold-agent-live-prices ✅
+S3:       prices/2026/04/09/01:10.json + prices/latest.json ✅
+```
+
+### EventBridge Schedule — COMPLETE ✅
+- Rule: `gold-agent-daily-consolidator`
+- Schedule: `cron(30 0 * * ? *)` — every day at 6:00 AM IST (00:30 UTC)
+- State: ENABLED
+- Target: gold-agent-consolidator Lambda
+- Decision: once daily (not every 2 hours) — conserves API quota for Phase 1
+
+### Next Immediate Tasks — Phase 2
+1. **WhatsApp Business API setup** — create Meta Business account, get phone number, get WHATSAPP_TOKEN + WHATSAPP_PHONE_ID
+2. **Submit 7 WhatsApp templates** for approval (welcome, price_alert, weekly_digest, festival_advisory, daily_morning_rate, price_drop_alert, price_rise_alert)
+3. **whatsapp-handler Lambda** — receives webhooks, parses messages, routes intents
+4. **agent-brain Lambda** — calls Claude API, builds context from DynamoDB, generates response
+5. **conversation Lambda** — price queries, trend explanations, festival advice
+6. **alert-checker Lambda** — hourly threshold check, sends alerts via WhatsApp
  
 ---
- 
+
 ### Scrapers — ALL COMPLETE
 - ✅ gold_api_com.py — built, tested
 - ✅ metals_dev.py — built, tested
@@ -1403,154 +1475,49 @@ GoodReturns.in is behind Cloudflare Bot Management. Standard `requests` sends a 
 - Spread thresholds: <1% normal, 1-2% warn, >2% flag in snapshot
 - GoodReturns excluded from consensus — different unit, currency, price type
  
-### Tools Decision
-- Not using Claude Code (requires paid plan) — revisit at Phase 2
-- Not using OpenClaw — personal assistant tool, not dev tool
-- Current workflow (Claude.ai chat + manual VS Code) working well
-- Will upgrade to Claude Pro ($20/month) when Phase 2 starts
- 
-### AWS Approach Finalised
-- Terraform for infrastructure (VPC, DynamoDB, S3, IAM, EventBridge, SNS, SES)
+### Tools & Workflow
+- Claude Code (Pro plan) — active, installed on Mac
+- Claude.ai chat + VS Code workflow — working well for development
+- AWS CLI configured, Terraform + SAM CLI installed via Homebrew
+
+## 🔑 Key Technical Decisions — Sessions 9–14
+
+### Consolidator Architecture
+- Built file by file — each with its own unit test before moving to next
+- AnomalyDetector standalone — no scraper engine dependency
+- TrimmedMean is a class — consistent with project OOP pattern
+- INR rate passed explicitly from consolidator to merger — not extracted inside merger
+- Merger orchestrates AnomalyDetector + TrimmedMean
+
+### Testing Strategy
+- Unit tests use patch.object to mock `_run_scrapers` — zero live API calls
+- Fixtures used for large realistic responses (GoldAPI.io)
+- End-to-end test runs all live scrapers — only after all unit tests pass
+- test_writers.py mocks boto3 — runs without AWS credentials
+
+### AWS Infrastructure
+- Terraform for infrastructure (DynamoDB, S3, IAM, EventBridge, SNS, SES)
 - SAM for Lambda packaging and deployment only
-- AWS CLI not yet installed — first task in AWS session
-- Terraform beginner — will be guided step by step
----
-
-**Step 2 — Phase 2: WhatsApp Bot**
-- WhatsApp Business API setup
-- agent-brain Lambda
-- whatsapp-handler Lambda
-- conversation Lambda
-- alert-checker Lambda
-
-### 8. AWS Infrastructure Approach
- 
-**Two tools, two jobs:**
- 
-| Tool | Job | Why |
-|---|---|---|
-| Terraform | All infrastructure | VPC, DynamoDB, S3, IAM, EventBridge, SNS, SES — long-lived resources |
-| AWS SAM | Lambda deployment only | Simpler for Python Lambda packaging, zip, layers, dependencies |
- 
-This is the standard split used by real engineering teams — Terraform owns the infrastructure, SAM owns the application deployment.
- 
-**Terraform covers:**
-- VPC + Subnets + NAT Gateway
-- DynamoDB tables (live_prices, source_health, quota_tracker)
-- S3 buckets (gold-agent-prices)
-- IAM roles and policies
-- EventBridge rules (hourly scraper schedule)
-- SNS topics (developer alerts)
-- SES (email alerts)
-- Secrets Manager (API keys)
- 
-**SAM covers:**
-- Lambda function packaging
-- Lambda deployment
-- Lambda environment variables
-- Lambda timeout + memory config
- 
-**Setup order for AWS session:**
-```
-1. Install AWS CLI on Mac
-2. Configure IAM credentials
-3. Write Terraform modules for core resources
-4. terraform init + terraform plan + terraform apply
-5. Wire dynamo_writer.py with real boto3 calls
-6. Wire s3_writer.py with real boto3 calls
-7. Deploy consolidator Lambda via SAM
-8. Set up EventBridge schedule
-9. Verify end-to-end in AWS
-```
- 
-**Important notes:**
-- Manikanta is a Terraform beginner — will be guided step by step
-- AWS CLI not yet installed — first thing to do in AWS session
-- AWS region: ap-south-1 (Mumbai) — always
-- IAM user already created under wife's root account
-
-## 🔑 Key Technical Decisions Made in Session 10
-
-### AWS Setup
-- Discovered old IAM user (s3-user) was wrong account — not used
-- Created fresh IAM user gold-agent-dev in wife's AWS account
-- Attached 10 managed policies covering all services Gold Agent needs
-- Configured AWS CLI on Mac with new credentials
-- Installed Terraform and SAM CLI via Homebrew
-- All tools verified and working
-
-## 🔑 Key Technical Decisions Made in Session 12
-
-### Lambda Deployment
-- SAM used for Lambda packaging and deployment
-- CodeUri set to project root (.) — not ./src — to keep import paths consistent
-- requirements.txt slimmed to Phase 1 only — anthropic, reportlab etc moved to requirements-all.txt
-- .terraform/ folder must never be committed — causes 692MB bloat in Lambda package
-- src/config/ created — metals.json and sources.json copied here for Lambda access
-- config_loader.py uses CONFIG_PATH env var — works both locally and in Lambda
+- CodeUri = project root (`.`) — keeps import paths consistent
+- `.terraform/` never committed — causes 692MB Lambda package bloat
+- `requirements.txt` slimmed to Phase 1 only — anthropic etc in requirements-all.txt
 
 ### Secrets Management
-- METALS_DEV_API_KEY and GOLDAPI_IO_KEY stored in AWS Secrets Manager
-- secrets_manager.py fetches and caches secrets at Lambda startup
-- Class-level cache — fetches once per Lambda container lifetime
-- load_dotenv() kept in all files — works locally, does nothing in Lambda
+- All API keys in AWS Secrets Manager
+- `secrets_manager.py` fetches and caches at Lambda startup (class-level cache)
+- `load_dotenv()` kept in all files — works locally, does nothing in Lambda
 
-### GoodReturns Retirement
-- GoodReturns.in blocked by Cloudflare IP reputation checks on AWS IPs
-- curl_cffi bypasses TLS fingerprinting but not IP reputation
-- All Indian finance sites behind Cloudflare will have same issue
-- Decision: retire GoodReturns, replace with RapidAPI
+### RapidAPI Replacing GoodReturns
+- GoodReturns retired — Cloudflare blocks AWS IPs (IP reputation, not TLS)
+- RapidAPI gold-silver-rates-india — $1.50/month, 550k requests, 77 locations
+- Gold: per 10gm in local currency — `unit = "gram_10"`
+- Silver: per kg in local currency — `unit = "kg"`
+- Both routed to `city_rates{}` in snapshot, never enter trimmed mean
+- Dubai silver returns 0 from API — scraper correctly skips it
 
-### RapidAPI Gold Silver Rates India
-- Provider: soralapps on RapidAPI
-- Cost: $1.50/month for 550,000 requests
-- 77 locations: 71 Indian cities + 6 international
-- International: USA, UK, Australia, Dubai, Saudi Arabia, Singapore
-- Gold: per 10gm in local currency, all karats (24K to 10K)
-- Silver: per kg in local currency, multiple purities (999, 925, 900, 800)
-- Prices as strings with commas — need parsing
-- Runs perfectly from Lambda — no Cloudflare issues
-- Replaces GoodReturns completely
-
-### Lambda Test Results
-- gold_api_com ✅ — prices fetched successfully
-- metals_dev ✅ — prices + INR rate fetched successfully  
-- goldapi_io ✅ — karat prices fetched successfully
-- goodreturns ❌ — all 28 cities blocked (403) — retired
-- Spread warning 1.461% — normal, sources slightly diverging
-- Lambda duration: 173 seconds — mostly GoodReturns timeout
-- Expected to drop to ~30 seconds after GoodReturns retired
-
-### IAM Setup
-- gold-agent-consolidator-role created via Terraform
-- Permissions: DynamoDB + S3 + CloudWatch Logs + Secrets Manager
-- IAM user hit 10 policy limit — removed AmazonVPCFullAccess (not needed Phase 1)
-- Added AWSCloudFormationFullAccess for SAM deployments
-
-### Next Session Starting Point
-- Start writing Terraform modules for core infrastructure
-- Order: S3 bucket → DynamoDB tables → IAM roles → Lambda → EventBridge
-- Then wire dynamo_writer.py and s3_writer.py with real boto3 calls
-
-# CONTEXT.md — Final Session 9 Patch
-# Apply ALL of these on top of previous session 9 updates
-
-# ============================================================
-# UPDATE Current Status section — add this at the top:
-# ============================================================
-
-## 🛠️ Tools & Subscriptions (Updated Session 9)
-
-| Tool | Status | Notes |
-|---|---|---|
-| Claude Pro | ✅ Active | Covers Claude Code + OpenClaw brain |
-| Claude Code | ✅ Installed | On MacBook + Mac Mini |
-| Claude Cowork | ✅ Available | Comes with Pro |
-| Mac Mini | ✅ Ready | 16GB RAM, OpenClaw to be installed |
-| AWS Credits | ✅ $220 available | Valid until August 2026 |
-| OpenClaw | ⏳ To install | Mac Mini orchestrator |
-| Mission Control | ⏳ To install | Agent dashboard |
-| Hermes | ❌ Deferred | Revisit in 1 month if needed |
+### S3Writer Bucket Name Bug (Session 14)
+- `os.environ.get("S3_BUCKET_NAME", default)` returns `""` when var is set to blank in `.env`
+- Fixed with `or` fallback: `os.environ.get("S3_BUCKET_NAME") or "gold-agent-prices"`
 | AWS Bedrock | ❌ Not needed | Claude Pro covers agent brain |
 
 # ============================================================

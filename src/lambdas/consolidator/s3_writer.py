@@ -28,7 +28,7 @@ from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
-S3_BUCKET  = os.environ.get("S3_BUCKET_NAME", "gold-agent-prices")
+S3_BUCKET  = os.environ.get("S3_BUCKET_NAME") or "gold-agent-prices"
 S3_PREFIX  = "prices"
 AWS_REGION = os.environ.get("AWS_REGION", "ap-south-1")
 
