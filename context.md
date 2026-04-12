@@ -985,17 +985,23 @@ S3:       prices/2026/04/09/01:10.json + prices/latest.json ✅
 Duration: ~42 seconds
 ```
 
-### All Unit Tests Passing
+### All Unit Tests Passing (pytest format — 2026-04-12)
+Run: `pytest tests/` — 83 passed, 41 skipped, 0 failed
+
 - ✅ tests/unit/lambdas/test_trimmed_mean.py — 11 tests
-- ✅ tests/unit/lambdas/test_anomaly_detector.py — 15 tests
+- ✅ tests/unit/lambdas/test_anomaly_detector.py — 16 tests
 - ✅ tests/unit/lambdas/test_validator.py — 14 tests
 - ✅ tests/unit/lambdas/test_merger.py — 13 tests
 - ✅ tests/unit/lambdas/test_writers.py — 12 tests (boto3 mocked)
-- ✅ tests/unit/lambdas/test_consolidator.py — 16 tests
-- ✅ tests/unit/scrapers/test_rapid_api_gold_silver.py — 15 tests (live API)
-- ✅ tests/unit/scrapers/test_gold_api_com.py
-- ✅ tests/unit/scrapers/test_metals_dev.py
-- ✅ tests/unit/scrapers/test_goldapi_io.py
+- ✅ tests/unit/lambdas/test_consolidator.py — 17 tests
+- ⏭️ tests/unit/scrapers/test_gold_api_com.py — 6 tests (skipped: live API)
+- ⏭️ tests/unit/scrapers/test_goldapi_io.py — 9 tests (skipped: requires GOLDAPI_IO_KEY)
+- ⏭️ tests/unit/scrapers/test_metals_dev.py — 11 tests (skipped: requires METALS_DEV_API_KEY)
+- ⏭️ tests/unit/scrapers/test_rapid_api_gold_silver.py — 13 tests (skipped: requires RAPIDAPI_KEY)
+- 🗑️ tests/unit/scrapers/test_goodreturns.py — deleted (retired scraper)
+
+All test files converted from script format (if/else + sys.exit) to proper pytest format
+(def test_* functions + assert statements). conftest.py added at project root for sys.path setup.
 
 ---
 
