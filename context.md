@@ -71,10 +71,9 @@ Keeping free for now. Future phases:
 - No app download, no account creation required
 - Phone number = identity (OTP for alerts)
 
-### Secondary Product (Phase 4)
-- React web dashboard on S3 + CloudFront
-- Same data, more visual
-- Available in Hindi, Tamil, Telugu, English
+### Secondary Product (Phase 4 — REMOVED FROM SCOPE)
+- React web dashboard was planned but removed. WhatsApp is the primary and only channel.
+- No frontend, no web-chat Lambda, no data-api Lambda.
 
 ---
 
@@ -610,19 +609,18 @@ gold-agent/
 │   │   │   ├── s3_writer.py                ✅ real boto3 — writes gold-agent-prices
 │   │   │   ├── trimmed_mean.py             ✅ unit tested
 │   │   │   └── validator.py                ✅ unit tested
-│   │   ├── agent-brain/                    ← Phase 2 (stubs)
-│   │   ├── alert-checker/                  ← Phase 2 (stubs)
-│   │   ├── conversation/                   ← Phase 2 (stubs)
-│   │   ├── data-api/                       ← Phase 2 (stubs)
-│   │   ├── festival-advisory/              ← Phase 2 (stubs)
-│   │   ├── gamification/                   ← Phase 3 (stubs)
-│   │   ├── location/                       ← Phase 3 (stubs)
-│   │   ├── rate-validator/                 ← Phase 3 (stubs)
-│   │   ├── report/                         ← Phase 4 (stubs)
-│   │   ├── scraper/                        ← Phase 2 (stubs)
-│   │   ├── web-chat/                       ← Phase 4 (stubs)
-│   │   ├── weekly-digest/                  ← Phase 2 (stubs)
-│   │   └── whatsapp-handler/               ← Phase 2 (stubs)
+│   │   ├── agent-brain/                    ✅ DEPLOYED — Claude chat, context builder, prompt
+│   │   ├── alert-checker/                  ✅ DEPLOYED — hourly threshold check, WhatsApp alerts
+│   │   ├── conversation/                   ✅ DEPLOYED — alert_setup.py, alert_manager.py
+│   │   ├── daily-digest/                   ✅ code complete — NOT deployed (awaiting Meta template)
+│   │   ├── festival-advisory/              ← Phase 3 stub
+│   │   ├── gamification/                   ← Phase 3 stub
+│   │   ├── location/                       ← Phase 3 stub
+│   │   ├── rate-validator/                 ← Phase 3 stub
+│   │   ├── scraper/                        ← Phase 2 (stub, unused)
+│   │   ├── whisper-transcriber/            ✅ DEPLOYED — container image (ECR), Whisper base
+│   │   └── whatsapp-handler/               ✅ DEPLOYED — webhook entry, routing, session mgmt
+│   │   (NOTE: data-api/, web-chat/, report/, weekly-digest/ were DELETED — not needed)
 │   ├── scrapers/
 │   │   ├── engine/
 │   │   │   ├── api_fetcher.py              ✅ built
@@ -677,7 +675,7 @@ gold-agent/
 | Layer | Technology |
 |---|---|
 | Language | Python 3.12 |
-| AI Brain (Phase 2) | Anthropic Claude API (claude-sonnet-4-5) |
+| AI Brain (Phase 2) | Anthropic Claude API (claude-sonnet-4-6) |
 | Infrastructure | AWS SAM (Lambda) + Terraform (infra) |
 | Primary Channel | Meta WhatsApp Business Cloud API |
 | Scraping | curl_cffi + BeautifulSoup |
@@ -1150,6 +1148,29 @@ aws iam put-user-policy --user-name gold-agent-dev --policy-name gold-agent-apig
 - `dynamo_writer.py`: now calculates `price_22k_inr`/`price_24k_inr` as average of Indian city 22K/24K prices from RapidAPI (per gram), excluding international locations. Writes `city_rates` as `{city: "price_per_10g"}` string map.
 - `price.py` `from_dynamo_rows()`: reads `price_22k_inr`/`price_24k_inr` from DB directly; only falls back to spot-price calculation if those fields are absent.
 - `context_builder.py`: converts string city_rate to float before formatting.
+
+### Issue 8 — Bot showed wrong prices after deployment (2026-05-22)
+**Symptom:** Bot reverted to "₹8,000 range" gold prices after the session's deployment.
+**Root cause (two factors):**
+1. DynamoDB had stale data from a bad consolidator run — `price_22k_inr` was ₹894/gram (should be ~₹14,586/gram). City rates showed ~₹8,930 per 10g which was 10x too low for actual gold price at $4,509/oz.
+2. New `context_builder.py` now shows ALL city rates to Claude (old version only showed rates when a `city` param was passed). With stale data, Claude was explicitly told wrong values from multiple fields, making it worse than before.
+
+**What happened during the fix attempt:**
+- Made wrong code change (removed `/10` from `dynamo_writer.py`) thinking RapidAPI returns per-gram — it actually returns per 10g.
+- Deployed and triggered consolidator → DynamoDB got price_22k_inr = ₹145,861/gram (10x too high).
+- Reverted the code change, redeployed, triggered consolidator again → correct values restored.
+
+**Correct behavior:**
+- RapidAPI returns city gold rates **per 10 grams** (e.g., Hyderabad 22K = ₹146,016/10g)
+- `dynamo_writer.py` divides by 10 → `price_22k_inr` stored as per-gram (₹14,602/gram) ← **this `/10` is CORRECT, do not remove it**
+- `city_rates` stores the raw per-10g values as strings (e.g., `{"mumbai": "145778.0"}`)
+- `context_builder.py` correctly labels city rates as "per 10g"
+
+**If prices look wrong again:** Trigger consolidator manually:
+```bash
+aws lambda invoke --function-name gold-agent-consolidator --region ap-south-1 --invocation-type RequestResponse --payload '{}' /tmp/out.json && cat /tmp/out.json
+```
+Then verify DynamoDB: `price_22k_inr` should be ~₹14,000–16,000/gram range.
 
 ---
 
