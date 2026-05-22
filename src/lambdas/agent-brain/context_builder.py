@@ -41,7 +41,7 @@ def build_price_context(city: Optional[str] = None) -> str:
                 lines.append(f"  24K gold per gram (INR): ₹{metal.price_24k_inr:,.0f}")
 
             if city and metal.city_rates and city in metal.city_rates:
-                city_rate = metal.city_rates[city]
+                city_rate = float(metal.city_rates[city])
                 lines.append(f"  City rate ({city}): ₹{city_rate:,.0f}/10g")
 
         lines.append(f"  Confidence: {metal.confidence} ({metal.source_count} sources)")
