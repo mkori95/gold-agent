@@ -54,10 +54,12 @@ def build_price_context(city: Optional[str] = None) -> str:
             lines.append(f"  USD/INR rate used: {metal.inr_rate:.2f}")
 
         if metal_id == "gold":
-            if metal.price_22k_inr:
-                lines.append(f"  22K gold per gram (INR): ₹{metal.price_22k_inr:,.0f}")
             if metal.price_24k_inr:
                 lines.append(f"  24K gold per gram (INR): ₹{metal.price_24k_inr:,.0f}")
+            if metal.price_22k_inr:
+                lines.append(f"  22K gold per gram (INR): ₹{metal.price_22k_inr:,.0f}")
+            if metal.price_18k_inr:
+                lines.append(f"  18K gold per gram (INR): ₹{metal.price_18k_inr:,.0f}")
 
             if metal.city_rates:
                 lines.append("  Indian city rates (22K per 10g):")

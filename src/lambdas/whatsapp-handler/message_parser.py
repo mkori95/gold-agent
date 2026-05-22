@@ -6,8 +6,11 @@ logger = get_logger(__name__)
 
 def parse_incoming(body: dict) -> Optional[dict]:
     """
-    Extract the first text message from a Meta webhook payload.
+    Extract the first actionable message from a Meta webhook payload.
     Returns a flat dict or None if the payload has no actionable message.
+
+    Text:  {"type": "text",  "text": "...",      "from": ..., "message_id": ..., "name": ..., "timestamp": ...}
+    Audio: {"type": "audio", "media_id": "...",  "from": ..., "message_id": ..., "name": ..., "timestamp": ...}
     """
     try:
         entries = body.get("entry", [])
@@ -26,21 +29,25 @@ def parse_incoming(body: dict) -> Optional[dict]:
         msg = messages[0]
         msg_type = msg.get("type")
 
-        if msg_type != "text":
-            # Phase 2 handles text only; audio/image deferred to Phase 3
-            logger.info(f"Ignoring non-text message type: {msg_type}")
-            return None
-
         contacts = value.get("contacts", [{}])
         contact = contacts[0] if contacts else {}
 
-        return {
+        base = {
             "message_id": msg["id"],
-            "from": msg["from"],                      # sender phone number
-            "text": msg["text"]["body"],
+            "from": msg["from"],
             "timestamp": msg.get("timestamp", ""),
             "name": contact.get("profile", {}).get("name", ""),
         }
+
+        if msg_type == "text":
+            return {**base, "type": "text", "text": msg["text"]["body"]}
+
+        if msg_type == "audio":
+            return {**base, "type": "audio", "media_id": msg["audio"]["id"]}
+
+        logger.info(f"Ignoring unsupported message type: {msg_type}")
+        return None
+
     except (KeyError, IndexError) as e:
         logger.error(f"Failed to parse webhook payload: {e}")
         return None

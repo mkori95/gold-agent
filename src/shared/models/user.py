@@ -13,6 +13,7 @@ class User:
     last_seen: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     message_count: int = 0
     is_active: bool = True
+    daily_summary: bool = False
 
     def to_dynamo(self) -> dict:
         return {
@@ -24,6 +25,7 @@ class User:
             "last_seen": self.last_seen,
             "message_count": self.message_count,
             "is_active": self.is_active,
+            "daily_summary": self.daily_summary,
         }
 
     @classmethod
@@ -37,4 +39,5 @@ class User:
             last_seen=item.get("last_seen", ""),
             message_count=int(item.get("message_count", 0)),
             is_active=item.get("is_active", True),
+            daily_summary=bool(item.get("daily_summary", False)),
         )

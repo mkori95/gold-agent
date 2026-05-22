@@ -8,7 +8,6 @@ Description: Gold Agent — Serverless Precious Metals Advisor
 # ============================================================
 Globals:
   Function:
-    Runtime: python3.12
     MemorySize: 256
     Timeout: 300
     Environment:
@@ -46,10 +45,18 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: gold-agent-consolidator
+      Runtime: python3.12
       CodeUri: .
       Handler: src/lambdas/consolidator/handler.handler
       Role: arn:aws:iam::077419561931:role/gold-agent-consolidator-role
       Description: Runs all scrapers and consolidates prices into snapshot
+      Events:
+        DailyRun:
+          Type: Schedule
+          Properties:
+            Schedule: cron(45 5 * * ? *)
+            Name: gold-agent-consolidator-daily
+            Description: Run consolidator at 11:15 AM IST (05:45 UTC) daily
 
   # ----------------------------------------------------------
   # Phase 2 — WhatsApp Handler
@@ -59,6 +66,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: gold-agent-whatsapp-handler
+      Runtime: python3.12
       CodeUri: .
       Handler: src/lambdas/whatsapp_handler/handler.handler
       Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
@@ -69,6 +77,7 @@ Resources:
           WHATSAPP_VERIFY_TOKEN: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_VERIFY_TOKEN}}"
           WHATSAPP_TOKEN: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_TOKEN}}"
           WHATSAPP_PHONE_NUMBER_ID: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_PHONE_NUMBER_ID}}"
+          WHISPER_TRANSCRIBER_FUNCTION_NAME: gold-agent-whisper-transcriber
       Events:
         WebhookGet:
           Type: Api
@@ -91,6 +100,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: gold-agent-brain
+      Runtime: python3.12
       CodeUri: .
       Handler: src/lambdas/agent_brain/handler.handler
       Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
@@ -111,6 +121,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: gold-agent-alert-checker
+      Runtime: python3.12
       CodeUri: .
       Handler: src/lambdas/alert_checker/handler.handler
       Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
@@ -128,8 +139,55 @@ Resources:
             Name: gold-agent-alert-checker-hourly
             Description: Check price alerts every hour
 
-  # Phase 3: RateValidatorFunction
-  # Phase 4: ReportFunction
+  # ----------------------------------------------------------
+  # Phase 2 — Daily Digest
+  # Sends morning price summary to opted-in subscribers
+  # ----------------------------------------------------------
+  DailyDigestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: gold-agent-daily-digest
+      Runtime: python3.12
+      CodeUri: .
+      Handler: src/lambdas/daily_digest/handler.handler
+      Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
+      Description: Sends daily gold price summary to opted-in WhatsApp subscribers
+      Timeout: 300
+      Environment:
+        Variables:
+          WHATSAPP_TOKEN: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_TOKEN}}"
+          WHATSAPP_PHONE_NUMBER_ID: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_PHONE_NUMBER_ID}}"
+      Events:
+        DailySummary:
+          Type: Schedule
+          Properties:
+            Schedule: cron(15 6 * * ? *)
+            Name: gold-agent-daily-digest
+            Description: Send daily summary at 11:45 AM IST (06:15 UTC)
+
+  # ----------------------------------------------------------
+  # Phase 3 — Whisper Transcriber
+  # Container image Lambda; invoked async by whatsapp-handler
+  # when an audio message arrives. Transcribes and calls agent-brain.
+  # ----------------------------------------------------------
+  WhisperTranscriberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: gold-agent-whisper-transcriber
+      PackageType: Image
+      ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/gold-agent-whisper:latest"
+      Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
+      Description: Transcribes WhatsApp voice notes using Whisper base model
+      Timeout: 120
+      MemorySize: 3008
+      Environment:
+        Variables:
+          AGENT_BRAIN_FUNCTION_NAME: gold-agent-brain
+          S3_BUCKET_NAME: gold-agent-prices
+          AWS_REGION_NAME: ap-south-1
+
+  # Phase 4: RateValidatorFunction
+  # Phase 5: ReportFunction
 
 # ============================================================
 # Outputs

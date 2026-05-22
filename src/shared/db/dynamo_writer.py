@@ -57,6 +57,16 @@ def record_alert_trigger(phone_number: str, alert_id: str) -> None:
     )
 
 
+def toggle_daily_summary(phone_number: str, enabled: bool) -> None:
+    table = get_table(TABLE_USERS)
+    table.update_item(
+        Key={"phone_number": phone_number},
+        UpdateExpression="SET daily_summary = :v",
+        ExpressionAttributeValues={":v": enabled},
+    )
+    logger.info(f"daily_summary={'on' if enabled else 'off'} for {phone_number}")
+
+
 def put_conversation_turn(phone_number: str, role: str, message: str) -> None:
     table = get_table(TABLE_HISTORY)
     ts = datetime.now(timezone.utc).isoformat()

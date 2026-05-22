@@ -11,6 +11,7 @@ class MetalPrice:
     confidence: str          # high | medium | low
     source_count: int
     spread_pct: Optional[float] = None
+    price_18k_inr: Optional[float] = None
     price_22k_inr: Optional[float] = None
     price_24k_inr: Optional[float] = None
     city_rates: Optional[dict] = None
@@ -49,6 +50,7 @@ class PriceSnapshot:
             spread_pct = float(row["spread_percent"]) if row.get("spread_percent") else None
 
             # Read Indian market prices from DB (set by consolidator from RapidAPI city averages)
+            price_18k_inr = float(row["price_18k_inr"]) if row.get("price_18k_inr") else None
             price_22k_inr = float(row["price_22k_inr"]) if row.get("price_22k_inr") else None
             price_24k_inr = float(row["price_24k_inr"]) if row.get("price_24k_inr") else None
 
@@ -57,6 +59,7 @@ class PriceSnapshot:
                 price_24k_per_gram = price_inr / TROY_OZ_TO_GRAMS
                 price_22k_inr = round(price_24k_per_gram * 22 / 24, 2)
                 price_24k_inr = round(price_24k_per_gram, 2)
+                price_18k_inr = round(price_22k_inr * 18 / 22, 2)
 
             city_rates = row.get("city_rates") or None
 
@@ -68,6 +71,7 @@ class PriceSnapshot:
                 confidence=confidence,
                 source_count=source_count,
                 spread_pct=spread_pct,
+                price_18k_inr=price_18k_inr,
                 price_22k_inr=price_22k_inr,
                 price_24k_inr=price_24k_inr,
                 city_rates=city_rates,
@@ -91,6 +95,7 @@ class PriceSnapshot:
                     confidence=val.get("confidence", "low"),
                     source_count=int(val.get("source_count", 0)),
                     spread_pct=float(val["spread_pct"]) if val.get("spread_pct") else None,
+                    price_18k_inr=float(val["price_18k_inr"]) if val.get("price_18k_inr") else None,
                     price_22k_inr=float(val["price_22k_inr"]) if val.get("price_22k_inr") else None,
                     price_24k_inr=float(val["price_24k_inr"]) if val.get("price_24k_inr") else None,
                     city_rates=val.get("city_rates"),
