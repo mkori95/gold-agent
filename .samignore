@@ -1,15 +1,43 @@
-infra/
+# Virtual environment — never include
 venv/
-.git/
+
+# Tests
+tests/
+
+# Docs and markdown
+docs/
+
+# Infrastructure as code — not needed in Lambda
+infra/
+scripts/
+terraform/
+.terraform/
+
+# Build artifacts
 .aws-sam/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+gold_agent.egg-info/
+
+# Dev files
 .env
-tests/
-docs/
-scripts/
+.env.example
+project_file_structure.txt
+setup_structure.sh
+setup.py
+response.json
+requirements-all.txt
+samconfig.toml
+
+# Frontend (Phase 4)
+src/frontend/
+node_modules/
+
+# Git
+.git/
+.gitignore
+
+# Markdown files
 *.md
-*.toml
-*.sh
-*.txt
-!requirements.txt
