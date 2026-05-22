@@ -18,13 +18,17 @@ from src.lambdas.whatsapp_handler.response_formatter import (
     help_message, summary_subscribe_message, summary_unsubscribe_message,
 )
 from src.shared.db.dynamo_writer import toggle_daily_summary
-from src.shared.notifications.whatsapp_client import send_text, mark_read
+from src.shared.notifications.whatsapp_client import send_text, mark_read, download_media
 from src.shared.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 AGENT_BRAIN_FUNCTION = os.environ.get("AGENT_BRAIN_FUNCTION_NAME", "gold-agent-brain")
+WHISPER_FUNCTION = os.environ.get("WHISPER_TRANSCRIBER_FUNCTION_NAME", "gold-agent-whisper-transcriber")
+S3_BUCKET = os.environ.get("S3_BUCKET_NAME", "gold-agent-prices")
+
 _lambda_client = None
+_s3_client = None
 
 
 def _get_lambda_client():
@@ -32,6 +36,13 @@ def _get_lambda_client():
     if _lambda_client is None:
         _lambda_client = boto3.client("lambda", region_name=os.environ.get("AWS_REGION_NAME", "ap-south-1"))
     return _lambda_client
+
+
+def _get_s3_client():
+    global _s3_client
+    if _s3_client is None:
+        _s3_client = boto3.client("s3", region_name=os.environ.get("AWS_REGION_NAME", "ap-south-1"))
+    return _s3_client
 
 
 def handler(event: dict, context) -> dict:
@@ -82,6 +93,9 @@ def _handle_message(event: dict) -> dict:
         # Status update or unsupported type — acknowledge and ignore
         return _response(200, {"status": "ok"})
 
+    if msg.get("type") == "audio":
+        return _handle_audio(msg)
+
     phone_number = msg["from"]
     text = msg["text"]
     message_id = msg["message_id"]
@@ -126,6 +140,58 @@ def _handle_message(event: dict) -> dict:
     _invoke_agent_brain(phone_number, text, effective_language, intent, user.city)
 
     return _response(200, {"status": "ok"})
+
+
+def _handle_audio(msg: dict) -> dict:
+    """Download voice note from Meta, upload to S3, kick off async transcription."""
+    phone_number = msg["from"]
+    message_id = msg["message_id"]
+    name = msg.get("name", "")
+
+    try:
+        mark_read(message_id)
+    except Exception as e:
+        logger.warning(f"Could not mark message as read: {e}")
+
+    user = get_or_create_user(phone_number, name, "en")
+    effective_language = user.language if user.language != "en" else "en"
+
+    try:
+        ogg_bytes = download_media(msg["media_id"])
+        s3_key = f"voice-temp/{message_id}.ogg"
+        _get_s3_client().put_object(
+            Bucket=S3_BUCKET,
+            Key=s3_key,
+            Body=ogg_bytes,
+            ContentType="audio/ogg",
+        )
+        _invoke_whisper_transcriber(
+            phone_number=phone_number,
+            s3_key=s3_key,
+            language_hint=effective_language,
+            city=user.city or "",
+        )
+        logger.info(f"Voice note queued for transcription: {phone_number}")
+    except Exception as e:
+        logger.error(f"Audio handling failed for {phone_number}: {e}")
+        send_text(phone_number, "Sorry, I couldn't process that voice note. Please send a text message instead.")
+
+    return _response(200, {"status": "ok"})
+
+
+def _invoke_whisper_transcriber(phone_number: str, s3_key: str, language_hint: str, city: str) -> None:
+    payload = {
+        "s3_bucket": S3_BUCKET,
+        "s3_key": s3_key,
+        "phone_number": phone_number,
+        "city": city,
+        "language_hint": language_hint,
+    }
+    _get_lambda_client().invoke(
+        FunctionName=WHISPER_FUNCTION,
+        InvocationType="Event",
+        Payload=json.dumps(payload).encode("utf-8"),
+    )
 
 
 def _invoke_agent_brain(phone_number: str, text: str, language: str, intent: str, city: str) -> None:

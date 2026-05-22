@@ -76,6 +76,7 @@ Resources:
           WHATSAPP_VERIFY_TOKEN: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_VERIFY_TOKEN}}"
           WHATSAPP_TOKEN: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_TOKEN}}"
           WHATSAPP_PHONE_NUMBER_ID: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_PHONE_NUMBER_ID}}"
+          WHISPER_TRANSCRIBER_FUNCTION_NAME: gold-agent-whisper-transcriber
       Events:
         WebhookGet:
           Type: Api
@@ -160,8 +161,29 @@ Resources:
             Name: gold-agent-daily-digest
             Description: Send daily summary at 11:45 AM IST (06:15 UTC)
 
-  # Phase 3: RateValidatorFunction
-  # Phase 4: ReportFunction
+  # ----------------------------------------------------------
+  # Phase 3 — Whisper Transcriber
+  # Container image Lambda; invoked async by whatsapp-handler
+  # when an audio message arrives. Transcribes and calls agent-brain.
+  # ----------------------------------------------------------
+  WhisperTranscriberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: gold-agent-whisper-transcriber
+      PackageType: Image
+      ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/gold-agent-whisper:latest"
+      Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
+      Description: Transcribes WhatsApp voice notes using Whisper base model
+      Timeout: 60
+      MemorySize: 1024
+      Environment:
+        Variables:
+          AGENT_BRAIN_FUNCTION_NAME: gold-agent-brain
+          S3_BUCKET_NAME: gold-agent-prices
+          AWS_REGION_NAME: ap-south-1
+
+  # Phase 4: RateValidatorFunction
+  # Phase 5: ReportFunction
 
 # ============================================================
 # Outputs

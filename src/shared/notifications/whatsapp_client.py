@@ -61,6 +61,28 @@ def mark_read(message_id: str) -> dict:
     return _post(url, payload)
 
 
+def download_media(media_id: str) -> bytes:
+    """Download a WhatsApp media file by ID. Returns raw bytes (OGG/Opus for voice)."""
+    token = _get_token()
+
+    # Step 1: resolve the media ID to a download URL
+    meta_req = urllib.request.Request(
+        f"{GRAPH_API_URL}/{media_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    with urllib.request.urlopen(meta_req, timeout=10) as resp:
+        meta = json.loads(resp.read().decode("utf-8"))
+    download_url = meta["url"]
+
+    # Step 2: download the binary — Meta requires the same auth header
+    file_req = urllib.request.Request(
+        download_url,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    with urllib.request.urlopen(file_req, timeout=30) as resp:
+        return resp.read()
+
+
 def _post(url: str, payload: dict) -> dict:
     token = _get_token()
     data = json.dumps(payload).encode("utf-8")
