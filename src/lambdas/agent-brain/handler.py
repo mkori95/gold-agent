@@ -11,10 +11,14 @@ from src.lambdas.agent_brain.prompt_builder import build_system_prompt
 from src.lambdas.agent_brain.claude_client import ask
 from src.lambdas.agent_brain.language_handler import append_language_reminder
 from src.lambdas.whatsapp_handler.session_manager import load_history, save_turn, format_history_for_claude
+from src.lambdas.conversation.alert_setup import handle as handle_alert_setup
 from src.shared.notifications.whatsapp_client import send_text
 from src.shared.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Intents handled by dedicated logic — NOT passed to Claude for action
+_DEDICATED_HANDLERS = {"alert_setup"}
 
 
 def handler(event: dict, context) -> dict:
@@ -37,26 +41,27 @@ def handler(event: dict, context) -> dict:
     logger.info(f"agent-brain processing: user={phone_number} intent={intent} lang={language}")
 
     try:
-        # Build price context from DynamoDB
-        price_context = build_price_context(city=city or None)
+        # --- alert_setup: extract params → write DynamoDB → confirm ---
+        # Claude is NOT used to "handle" this — only to extract structured data.
+        # The backend sets the alert; we confirm only after it's written.
+        if intent == "alert_setup":
+            reply = handle_alert_setup(phone_number, message, language)
+            save_turn(phone_number, message, reply)
+            send_text(phone_number, reply)
+            logger.info(f"Alert setup reply sent to {phone_number}")
+            return {"status": "ok"}
 
-        # Build Claude system prompt
+        # --- All other intents: Claude answers with live price context ---
+        price_context = build_price_context(city=city or None)
         system_prompt = build_system_prompt(language, price_context)
 
-        # Load conversation history
         history_records = load_history(phone_number, limit=6)
         history = format_history_for_claude(history_records)
 
-        # Append language reminder to user message
         user_message = append_language_reminder(message, language)
-
-        # Call Claude
         reply = ask(system_prompt, history, user_message)
 
-        # Save this turn to conversation history
         save_turn(phone_number, message, reply)
-
-        # Send reply via WhatsApp
         send_text(phone_number, reply)
 
         logger.info(f"Reply sent to {phone_number}")
@@ -66,6 +71,6 @@ def handler(event: dict, context) -> dict:
         logger.error(f"agent-brain error for {phone_number}: {e}", exc_info=True)
         send_text(
             phone_number,
-            "Sorry, I couldn't fetch the latest prices. Please try again in a few minutes."
+            "Sorry, something went wrong. Please try again in a few minutes."
         )
         return {"status": "error", "error": str(e)}
