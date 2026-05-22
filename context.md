@@ -1160,14 +1160,17 @@ Haiku 4.5 (`claude-haiku-4-5-20251001`) was tested on `price_query` intent and r
 
 ---
 
-## 🚀 Next Steps — Phase 3
+## 🚀 Next Steps
 
-Phase 2 is complete and live. Phase 3 is crowdsourced jeweller rates, location services, and gamification.
+**Immediate (blocked on Meta):**
+- Enhancement 1 (daily digest): waiting for Meta template approval. Once approved → `sam build && sam deploy` to go live.
 
-Before starting Phase 3, consider:
-- Add more test phone numbers to Meta sandbox (currently limited to whitelisted numbers in dev mode)
-- Submit WhatsApp message templates for approval (price_alert, weekly_digest, festival_advisory) to enable proactive outbound messages
-- Monitor CloudWatch logs for any runtime errors in production
+**After Enhancement 1 deploys:**
+- Phase 3: crowdsourced jeweller rates, location search, gamification (code stubs exist in src/lambdas/)
+
+**Ongoing:**
+- Monitor CloudWatch logs for runtime errors in production
+- Add more test phone numbers to Meta sandbox if needed (currently limited to whitelisted numbers in dev mode)
 
 ### Re-deploy command (for any future changes)
 ```bash
@@ -1180,7 +1183,7 @@ aws lambda invoke --function-name gold-agent-consolidator --region ap-south-1 --
 
 ---
 
-## ✅ Enhancement 1 — Daily Summary (2026-05-22, code complete, NOT YET DEPLOYED)
+## ✅ Enhancement 1 — Daily Summary (2026-05-22, code complete, NOT YET DEPLOYED — awaiting Meta template approval)
 
 ### 18K Price Fix
 - `src/lambdas/consolidator/dynamo_writer.py` — writes `price_18k_inr` derived from `price_22k_inr * 18/22` (same Indian retail basis)
@@ -1212,7 +1215,37 @@ aws lambda invoke --function-name gold-agent-consolidator --region ap-south-1 --
 - Reasoning: Indian jewellers update 10AM-12PM. 11:15AM consolidator captures most cities. 11:45AM summary goes out 30 min later.
 
 ### WhatsApp Template
-Draft agreed, not yet submitted to Meta for approval. Category: UTILITY. Variables: city, date, price_22k, price_24k, price_18k, price_silver, price_platinum, diff values, updated_time, yesterday_date.
+Submitted to Meta for approval (2026-05-22). Category: UTILITY. Variables: city, date, price_22k, price_24k, price_18k, price_silver, price_platinum, diff values, updated_time, yesterday_date. Waiting for Meta approval (typically 24-48hrs) before deploying this Lambda.
+
+---
+
+## ✅ Enhancement 2 — Voice Notes / Whisper (DEPLOYED AND LIVE — 2026-05-22)
+
+### What was built
+- New Lambda: `gold-agent-whisper-transcriber` — container image (ECR), 3008MB, 120s timeout
+- `src/lambdas/whisper-transcriber/handler.py` — standalone (no shared imports), downloads OGG from S3, transcribes with Whisper base, deletes OGG, invokes agent-brain async
+- `src/lambdas/whisper-transcriber/Dockerfile` — CPU-only PyTorch, openai-whisper, imageio-ffmpeg (bundled static ffmpeg binary, no dnf install needed), Whisper base model pre-baked at `/var/task/.whisper_cache`
+- `src/shared/notifications/whatsapp_client.py` — added `download_media(media_id)`: two-step Meta Graph API call (GET media_id → GET URL with Bearer token)
+- `src/lambdas/whatsapp-handler/message_parser.py` — added `audio` type parsing alongside `text`
+- `src/lambdas/whatsapp-handler/handler.py` — `_handle_audio()` downloads OGG, uploads to S3 `voice-temp/{message_id}.ogg`, invokes whisper-transcriber async
+- `template.yml` — Runtime moved from Globals to per-function (required by PackageType: Image), added WhisperTranscriberFunction
+- `deploy_whisper.sh` — one-shot script: ECR repo check, Docker login, build linux/amd64, push to ECR, S3 lifecycle rule on voice-temp/, sam build + deploy
+
+### Key decisions
+- Whisper `base` model (144MB) — better Indian accent accuracy than `tiny`, manageable cold start
+- 3008MB Lambda (~2 vCPU) — at 1024MB Whisper took 26s init and nearly OOM'd; 3008MB loads in ~2s warm, ~15s cold
+- `imageio-ffmpeg` pip package — bundles a static Linux x86_64 ffmpeg binary, symlinked to `/usr/local/bin/ffmpeg`. Avoids `dnf install ffmpeg` which fails on AL2023 (not in default repos)
+- Response is text only — TTS ruled out (no Telugu neural voice in Amazon Polly; text is more scannable for price data)
+- OGG deleted immediately after transcription; S3 lifecycle rule on `voice-temp/` = 1-day auto-expiry safety net
+
+### Confirmed working in production
+Voice note flow confirmed end-to-end: voice note → S3 → Whisper → agent-brain → WhatsApp reply. Warm invocations: ~16s Duration, ~1009MB used.
+
+### Docker Desktop fix (macOS — one-time)
+Docker Desktop proxy (`http.docker.internal:3128`) kills large ECR layer pushes. Fix: add `ContainersOverrideProxyExclude: *.amazonaws.com` in `~/Library/Group Containers/group.com.docker/settings-store.json`, restart Docker Desktop.
+
+### ECR repository policy (already applied)
+Lambda service needs pull permission on the ECR repo. Applied once with `aws ecr set-repository-policy`. Required adding `ecr:SetRepositoryPolicy` to `gold-agent-dev` IAM user first.
 
 ---
 

@@ -32,6 +32,7 @@ Indian housewives check gold prices by calling their jeweller — a source with 
 | "सोने का भाव क्या है?" | Hindi | Same, replied in Hindi |
 | "தங்கம் விலை என்ன?" | Tamil | Same, replied in Tamil |
 | "బంగారం ధర ఎంత?" | Telugu | Same, replied in Telugu |
+| Voice note (any language) | Any | Transcribed with Whisper, answered same as text |
 | "How much gold for ₹50,000?" | Any | Calculator with live price |
 | "Alert me when gold drops below ₹14,000" | Any | Alert saved — WhatsApp notification fires when threshold crossed |
 | "சோன ₹14,000 கீழே போனா சொல்லு" | Tamil | Same, from Tamil message |
@@ -85,13 +86,13 @@ The backend solves three things the model cannot:
 ## How a Message Travels Through the System
 
 ```
-WhatsApp user sends message
+WhatsApp user sends text message
         ↓
 Meta Cloud API → API Gateway (ap-south-1)
         ↓
 whatsapp-handler Lambda
   ├── Validates HMAC-SHA256 signature
-  ├── Parses message text
+  ├── Parses message (text or audio)
   ├── Detects language (Unicode range — Hindi/Tamil/Telugu/English)
   ├── Classifies intent (regex — price_query / alert_setup / alert_remove / alert_list / calculator / ...)
   ├── Loads/saves conversation history (DynamoDB — 10-turn window, 30min timeout)
@@ -104,6 +105,23 @@ agent-brain Lambda
   └── everything else → Claude (Sonnet 4.6) with live price context
         ↓
 Claude response → whatsapp_client → Meta Cloud API → WhatsApp user
+
+
+WhatsApp user sends voice note
+        ↓
+whatsapp-handler Lambda
+  ├── Detects audio message type
+  ├── Downloads OGG from Meta Graph API (two-step: GET media_id → GET URL with Bearer token)
+  ├── Uploads to S3: gold-agent-prices/voice-temp/{message_id}.ogg
+  └── Invokes whisper-transcriber Lambda async (returns 200 to Meta immediately)
+        ↓
+whisper-transcriber Lambda (container image, 3008MB)
+  ├── Downloads OGG from S3
+  ├── Transcribes with Whisper base model (pre-baked in image)
+  ├── Deletes OGG from S3 immediately after transcription
+  └── Invokes agent-brain async with transcript as text
+        ↓
+agent-brain Lambda → Claude → WhatsApp reply (same path as text)
 ```
 
 Separately, running on EventBridge:
@@ -366,16 +384,17 @@ Replaced by RapidAPI. Code is kept in case IP situation changes.
 
 ## Deployed Lambdas
 
-| Lambda | Status | Trigger | What it does |
-|---|---|---|---|
-| `gold-agent-consolidator` | ✅ Live | EventBridge daily 6AM IST | Scrapes prices, writes DynamoDB + S3 |
-| `gold-agent-whatsapp-handler` | ✅ Live | API Gateway POST /webhook | Receives Meta webhook, classifies intent, invokes agent-brain |
-| `gold-agent-agent-brain` | ✅ Live | Invoked by whatsapp-handler | Calls Claude with price context, handles alert writes |
-| `gold-agent-alert-checker` | ✅ Live | EventBridge hourly | Checks thresholds, sends WhatsApp notifications |
-| `gold-agent-daily-digest` | ✅ Live | EventBridge 11:45AM IST | Sends morning price summary to opted-in subscribers |
-| `gold-agent-scraper` | Code ready, not deployed | EventBridge | Orchestrates scrapers with circuit breaker + quota management |
-| `gold-agent-festival-advisory` | Code ready, not deployed | EventBridge | Proactive pre-festival WhatsApp messages |
-| `gold-agent-weekly-digest` | Code ready, not deployed | EventBridge weekly | Weekly price summary per user |
+| Lambda | Status | Trigger | Runtime | What it does |
+|---|---|---|---|---|
+| `gold-agent-consolidator` | ✅ Live | EventBridge daily 11:15AM IST | python3.12 zip | Scrapes prices, writes DynamoDB + S3 |
+| `gold-agent-whatsapp-handler` | ✅ Live | API Gateway POST /webhook | python3.12 zip | Receives Meta webhook, classifies intent, invokes agent-brain |
+| `gold-agent-brain` | ✅ Live | Invoked by whatsapp-handler | python3.12 zip | Calls Claude with price context, handles alert writes |
+| `gold-agent-alert-checker` | ✅ Live | EventBridge hourly | python3.12 zip | Checks thresholds, sends WhatsApp notifications |
+| `gold-agent-daily-digest` | ✅ Live | EventBridge 11:45AM IST | python3.12 zip | Sends morning price summary to opted-in subscribers |
+| `gold-agent-whisper-transcriber` | ✅ Live | Invoked by whatsapp-handler | Container image (ECR) | Transcribes WhatsApp voice notes using Whisper base model |
+| `gold-agent-scraper` | Code ready, not deployed | EventBridge | — | Orchestrates scrapers with circuit breaker + quota management |
+| `gold-agent-festival-advisory` | Code ready, not deployed | EventBridge | — | Proactive pre-festival WhatsApp messages |
+| `gold-agent-weekly-digest` | Code ready, not deployed | EventBridge weekly | — | Weekly price summary per user |
 
 ---
 
@@ -421,9 +440,9 @@ gold-agent/
 │   │   │   ├── dynamo_writer.py      ← writes price_22k_inr/price_24k_inr from city averages
 │   │   │   └── s3_writer.py
 │   │   ├── whatsapp-handler/         ← Phase 2 ✅ deployed
-│   │   │   ├── handler.py            ← GET (verify) + POST (messages), async invoke
+│   │   │   ├── handler.py            ← GET (verify) + POST (messages + audio), async invoke
 │   │   │   ├── signature_validator.py
-│   │   │   ├── message_parser.py
+│   │   │   ├── message_parser.py     ← parses text + audio message types
 │   │   │   ├── language_detector.py  ← Unicode range detection
 │   │   │   ├── intent_classifier.py  ← regex routing (alert_remove before alert_setup — order matters)
 │   │   │   ├── session_manager.py    ← 10-turn history, 30min timeout
@@ -432,6 +451,9 @@ gold-agent/
 │   │   │   ├── response_sender.py
 │   │   │   ├── template_sender.py
 │   │   │   └── window_checker.py     ← WhatsApp 24-hour window enforcement
+│   │   ├── whisper-transcriber/      ← Enhancement 2 ✅ deployed (container image)
+│   │   │   ├── handler.py            ← standalone — no shared imports, Whisper + S3 + invoke
+│   │   │   └── Dockerfile            ← CPU torch + imageio-ffmpeg (bundled ffmpeg binary)
 │   │   ├── agent-brain/              ← Phase 2 ✅ deployed
 │   │   │   ├── handler.py            ← routes alert_* to conversation/, rest to Claude
 │   │   │   ├── claude_client.py      ← model selection, prompt caching, token logging
@@ -491,7 +513,7 @@ gold-agent/
 │       │   ├── jeweller.py
 │       │   └── source.py
 │       ├── notifications/
-│       │   ├── whatsapp_client.py    ← send_text, send_template, mark_read (urllib, no extra deps)
+│       │   ├── whatsapp_client.py    ← send_text, send_template, mark_read, download_media (urllib, no extra deps)
 │       │   ├── ses_client.py
 │       │   ├── sns_client.py
 │       │   └── notification_formatter.py
@@ -617,9 +639,14 @@ Trigger consolidator manually (refreshes DynamoDB prices):
 aws lambda invoke --function-name gold-agent-consolidator --region ap-south-1 --payload '{}' /tmp/out.json
 ```
 
-Deploy:
+Deploy (zip Lambdas only):
 ```bash
-sam build && sam deploy --region ap-south-1 --no-confirm-changeset
+sam build && sam deploy --region ap-south-1 --no-confirm-changeset --resolve-image-repos
+```
+
+Deploy including Whisper container image (first time or after Dockerfile change):
+```bash
+./deploy_whisper.sh
 ```
 
 ---
@@ -630,6 +657,7 @@ sam build && sam deploy --region ap-south-1 --no-confirm-changeset
 |---|---|---|
 | Phase 1 | Automated price pipeline — 4 scrapers, consensus, DynamoDB + S3 | ✅ Live |
 | Phase 2 | WhatsApp chatbot — prices, alerts (set/list/remove), 4 languages | ✅ Live (2026-05-22) |
+| Enhancement 2 | Voice note support — Whisper base model transcription via ECR container Lambda | ✅ Live (2026-05-22) |
 | Phase 3 | Crowdsourced jeweller rates, location search, gamification | Code scaffolded, not deployed |
 | Phase 4 | Web dashboard, PDF reports, paid API access | Code scaffolded, not deployed |
 
