@@ -49,11 +49,14 @@ Return exactly this JSON structure:
 
 Rules:
 - metal: gold (sona/सोना/தங்கம்/బంగారం), silver (chandi/चांदी/வெள்ளி/వెండి), platinum
-- direction: below = drops/gire/நீழே/కింద/se niche, above = rises/badhega/மேலே/పైన/se upar
-- threshold_inr: the rupee amount per gram the user mentions (just the number)
+- direction: below = drops/falls/gire/நீழே/కింద/se niche, above = rises/increases/badhega/மேலே/పైన/se upar
+- threshold_inr: the target price in Indian rupees per gram — convert as follows:
+  - INR per gram directly (e.g. ₹14000/gram, 14000 rupees) → use that number
+  - INR per 10g (e.g. ₹1,40,000/10g) → divide by 10
+  - USD per troy oz (e.g. $4500, $5000 dollars) → convert: round(usd_price / 31.1035 * 95)
+  - RELATIVE or DELTA amount ("increases by X", "drops by X", "goes up by X", "when it rises X") → set threshold_inr to null (cannot compute without current price)
 - karat: "22K" default for gold unless user says 24K; "999" default for silver/platinum
-- If metal, direction, or threshold_inr cannot be determined, set them to null
-- Do not convert or calculate — extract as-is from the message"""
+- If metal, direction, or threshold_inr cannot be determined, set them to null"""
 
 
 # ── Multilingual static messages ──────────────────────────────────────────────
@@ -86,29 +89,29 @@ _CLARIFICATION = {
     "en": (
         "To set an alert, I need three things: the metal, the direction, and your target price.\n\n"
         "Examples:\n"
-        "\"Alert me when *gold drops below ₹6500/gram*\"\n"
-        "\"Tell me when *silver goes above ₹80/gram*\"\n\n"
-        "Which metal, which direction, and what price?"
+        "\"Alert me when *gold drops below ₹14,000/gram*\"\n"
+        "\"Tell me when *silver goes above ₹90/gram*\"\n\n"
+        "Which metal, which direction, and what target price in rupees per gram?"
     ),
     "hi": (
         "अलर्ट सेट करने के लिए तीन चीज़ें बताएं: धातु, दिशा, और target भाव।\n\n"
         "उदाहरण:\n"
-        "\"जब *सोना ₹6500/gram से नीचे* जाए तो बताना\"\n"
-        "\"जब *चांदी ₹80/gram से ऊपर* जाए तो alert करना\"\n\n"
+        "\"जब *सोना ₹14,000/gram से नीचे* जाए तो बताना\"\n"
+        "\"जब *चांदी ₹90/gram से ऊपर* जाए तो alert करना\"\n\n"
         "कौन सी धातु, किस दिशा में, और कितने रुपये?"
     ),
     "ta": (
         "எச்சரிக்கை அமைக்க மூன்று விஷயங்கள் சொல்லுங்கள்: உலோகம், திசை, இலக்கு விலை.\n\n"
         "உதாரணங்கள்:\n"
-        "\"*தங்கம் ₹6500/gram கீழே* போனால் சொல்லு\"\n"
-        "\"*வெள்ளி ₹80/gram மேலே* போனால் தெரிவி\"\n\n"
+        "\"*தங்கம் ₹14,000/gram கீழே* போனால் சொல்லு\"\n"
+        "\"*வெள்ளி ₹90/gram மேலே* போனால் தெரிவி\"\n\n"
         "எந்த உலோகம், எந்த திசை, எந்த விலை?"
     ),
     "te": (
         "హెచ్చరిక సెట్ చేయడానికి మూడు విషయాలు చెప్పండి: లోహం, దిశ, మీ లక్ష్య ధర.\n\n"
         "ఉదాహరణలు:\n"
-        "\"*బంగారం ₹6500/gram కంటే తక్కువ* అయితే చెప్పు\"\n"
-        "\"*వెండి ₹80/gram కంటే ఎక్కువ* అయితే తెలియజేయి\"\n\n"
+        "\"*బంగారం ₹14,000/gram కంటే తక్కువ* అయితే చెప్పు\"\n"
+        "\"*వెండి ₹90/gram కంటే ఎక్కువ* అయితే తెలియజేయి\"\n\n"
         "ఏ లోహం, ఏ దిశ, ఎంత ధర?"
     ),
 }
