@@ -8,7 +8,6 @@ Description: Gold Agent — Serverless Precious Metals Advisor
 # ============================================================
 Globals:
   Function:
-    Runtime: python3.12
     MemorySize: 256
     Timeout: 300
     Environment:
@@ -46,6 +45,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: gold-agent-consolidator
+      Runtime: python3.12
       CodeUri: .
       Handler: src/lambdas/consolidator/handler.handler
       Role: arn:aws:iam::077419561931:role/gold-agent-consolidator-role
@@ -66,6 +66,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: gold-agent-whatsapp-handler
+      Runtime: python3.12
       CodeUri: .
       Handler: src/lambdas/whatsapp_handler/handler.handler
       Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
@@ -99,6 +100,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: gold-agent-brain
+      Runtime: python3.12
       CodeUri: .
       Handler: src/lambdas/agent_brain/handler.handler
       Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
@@ -119,6 +121,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: gold-agent-alert-checker
+      Runtime: python3.12
       CodeUri: .
       Handler: src/lambdas/alert_checker/handler.handler
       Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
@@ -144,6 +147,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: gold-agent-daily-digest
+      Runtime: python3.12
       CodeUri: .
       Handler: src/lambdas/daily_digest/handler.handler
       Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role

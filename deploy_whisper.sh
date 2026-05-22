@@ -85,13 +85,14 @@ cd "$SCRIPT_DIR"
 sam build
 
 if [ -f "$SCRIPT_DIR/samconfig.toml" ]; then
-  sam deploy --no-confirm-changeset
+  sam deploy --no-confirm-changeset --resolve-image-repos
 else
   sam deploy \
     --stack-name "$STACK_NAME" \
     --capabilities CAPABILITY_IAM \
     --region "$REGION" \
     --resolve-s3 \
+    --resolve-image-repos \
     --no-confirm-changeset
 fi
 
