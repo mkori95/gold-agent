@@ -12,6 +12,8 @@ infra/
 scripts/
 terraform/
 .terraform/
+**/.terraform/
+infra/terraform/.terraform/
 
 # Build artifacts
 .aws-sam/

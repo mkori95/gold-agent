@@ -155,10 +155,35 @@ class DynamoWriter:
             usd_to_inr:  USD to INR conversion rate
         """
 
+        # Derive 22K/24K per-gram prices from RapidAPI city averages (Indian market rate)
+        city_rates = metal_data.get("city_rates", {})
+        INTERNATIONAL = {"united-states", "united-kingdom", "dubai"}
+        price_22k_inr = None
+        price_24k_inr = None
+        if metal == "gold" and city_rates:
+            indian_rates = {loc: v for loc, v in city_rates.items() if loc not in INTERNATIONAL}
+            prices_22k = [v.get("22K") for v in indian_rates.values() if isinstance(v, dict) and v.get("22K")]
+            prices_24k = [v.get("24K") for v in indian_rates.values() if isinstance(v, dict) and v.get("24K")]
+            if prices_22k:
+                price_22k_inr = str(round(sum(prices_22k) / len(prices_22k) / 10, 2))
+            if prices_24k:
+                price_24k_inr = str(round(sum(prices_24k) / len(prices_24k) / 10, 2))
+
+        # Flatten city_rates to {city: "22K_price_per_10g"} — strings, no floats in DynamoDB
+        city_rates_simple = {
+            loc: str(rates.get("22K"))
+            for loc, rates in city_rates.items()
+            if isinstance(rates, dict) and rates.get("22K")
+            and loc not in ("united-states", "united-kingdom", "dubai")  # INR cities only
+        } if city_rates else {}
+
         item = {
             "metal":          metal,
             "price_usd":      str(metal_data.get("price_usd") or ""),
             "price_inr":      str(metal_data.get("price_inr") or ""),
+            "price_22k_inr":  price_22k_inr or "",
+            "price_24k_inr":  price_24k_inr or "",
+            "city_rates":     city_rates_simple,
             "unit":           metal_data.get("unit", "troy_ounce"),
             "confidence":     metal_data.get("confidence", "unknown"),
             "sources_used":   metal_data.get("sources_used", []),

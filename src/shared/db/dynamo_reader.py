@@ -16,20 +16,13 @@ TABLE_HISTORY = os.environ.get("DYNAMO_TABLE_CONVERSATION_HISTORY", "gold-agent-
 
 
 def get_latest_snapshot() -> Optional[PriceSnapshot]:
-    """Returns today's price snapshot from DynamoDB."""
-    from datetime import datetime, timezone
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    """Returns the latest price snapshot by scanning all per-metal rows."""
     table = get_table(TABLE_LIVE_PRICES)
-    resp = table.get_item(Key={"snapshot_date": today})
-    item = resp.get("Item")
-    if not item:
-        # fall back to most recent available
-        resp = table.scan(Limit=1)
-        items = resp.get("Items", [])
-        if not items:
-            return None
-        item = items[0]
-    return PriceSnapshot.from_dynamo(item)
+    resp = table.scan()
+    items = resp.get("Items", [])
+    if not items:
+        return None
+    return PriceSnapshot.from_dynamo_rows(items)
 
 
 def get_user(phone_number: str) -> Optional[User]:

@@ -14,7 +14,7 @@ from src.lambdas.whatsapp_handler.message_parser import parse_incoming
 from src.lambdas.whatsapp_handler.language_detector import detect_language
 from src.lambdas.whatsapp_handler.intent_classifier import classify_intent
 from src.lambdas.whatsapp_handler.user_manager import get_or_create_user
-from src.lambdas.whatsapp_handler.response_formatter import help_message, unknown_message
+from src.lambdas.whatsapp_handler.response_formatter import help_message
 from src.shared.notifications.whatsapp_client import send_text, mark_read
 from src.shared.utils.logger import get_logger
 
@@ -107,11 +107,9 @@ def _handle_message(event: dict) -> dict:
         send_text(phone_number, help_message(effective_language))
         return _response(200, {"status": "ok"})
 
-    if intent == "unknown":
-        send_text(phone_number, unknown_message(effective_language))
-        return _response(200, {"status": "ok"})
-
-    # For all other intents — invoke agent-brain async so we return 200 fast
+    # For all other intents (including "unknown") — invoke agent-brain async.
+    # Unknown messages often continue a prior conversation thread; let Claude
+    # decide what to do using conversation history instead of dropping them.
     _invoke_agent_brain(phone_number, text, effective_language, intent, user.city)
 
     return _response(200, {"status": "ok"})

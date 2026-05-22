@@ -135,8 +135,11 @@ Keeping free for now. Future phases:
 ### live_prices DynamoDB record structure
 ```
 metal                  ← partition key (gold / silver / platinum / copper)
-price_usd              ← consensus trimmed mean result
-price_inr              ← converted using Metals.Dev INR rate
+price_usd              ← consensus trimmed mean result (international spot, per troy oz)
+price_inr              ← converted using Metals.Dev INR rate (per troy oz)
+price_22k_inr          ← average 22K per gram across Indian cities from RapidAPI ← NEW
+price_24k_inr          ← average 24K per gram across Indian cities from RapidAPI ← NEW
+city_rates             ← {city_slug: "22K_price_per_10g"} for Indian cities only ← NEW
 unit                   ← troy_ounce
 confidence             ← "high" / "medium" / "low" / "unavailable"
 sources_used           ← list of source_ids that contributed
@@ -148,6 +151,8 @@ inr_rate               ← INR exchange rate used
 usd_to_inr             ← 1 / inr_rate
 updated_at             ← when written
 ```
+
+**IMPORTANT:** `price_22k_inr` and `price_24k_inr` are the correct Indian market prices from RapidAPI city data (includes import duty, GST, etc.). They are NOT derived from international spot price. Always use these for user-facing price display. The `price_inr` field (international spot converted) is only for reference.
 
 ### Athena
 Sits on top of S3 /prices/ folder. Used for historical queries and dashboard charts.
@@ -557,8 +562,8 @@ PRIORITY 3 — Market Rate + Education (Phase 2)
 ### Phase 1 — The Engine ✅ COMPLETE
 Fully automated data pipeline running in AWS Lambda. EventBridge fires daily at 6AM IST. Prices collected from 4 sources, consensus calculated, written to DynamoDB + S3.
 
-### Phase 2 — The Product ← NEXT
-WhatsApp chatbot with real users. Receive messages, answer price questions, set alerts.
+### Phase 2 — The Product ✅ COMPLETE — DEPLOYED AND LIVE (2026-05-22)
+WhatsApp chatbot with real users. Receive messages, answer price questions, set alerts. Bot is live on WhatsApp, responding correctly in all 4 languages with accurate Indian market prices.
 
 ### Phase 3 — The Community
 Crowdsourced jeweller rates, location services, gamification.
@@ -1011,15 +1016,30 @@ Run: `pytest tests/` — 134 passed, 41 skipped, 0 failed
 
 ---
 
-## ✅ Phase 2 — What Is Built (2026-05-21)
+## ✅ Phase 2 — DEPLOYED AND LIVE (2026-05-22)
 
-**All Phase 2 Lambda code written, tested locally. Not yet deployed to AWS.**
+**All Phase 2 Lambdas deployed to AWS. Bot is live on WhatsApp. Tested and confirmed working in all 4 languages with correct Indian market prices.**
+
+### Live Infrastructure
+- ✅ **Webhook URL:** `https://jyfieovwei.execute-api.ap-south-1.amazonaws.com/prod/webhook`
+- ✅ **API Gateway:** `GoldAgentApi` (stage: prod) — ap-south-1
+- ✅ **Meta webhook:** Configured, verified, subscribed to `messages`
+- ✅ **IAM role:** `gold-agent-phase2-role` (Lambda execution role — DynamoDB + Secrets Manager + Lambda invoke)
+- ✅ **Inline policy:** `gold-agent-apigateway` added to `gold-agent-dev` user (hit 10 managed policy limit)
+
+### AWS Secrets Manager
+- ✅ `gold-agent/whatsapp` — WHATSAPP_TOKEN (permanent System User token), WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN
+- ✅ `gold-agent/anthropic` — ANTHROPIC_API_KEY
+
+### DynamoDB Tables (Phase 2 — all PAY_PER_REQUEST)
+- ✅ `gold-agent-users` — partition key: phone_number
+- ✅ `gold-agent-alert-preferences` — partition key: phone_number (HASH) + alert_id (RANGE)
+- ✅ `gold-agent-conversation-history` — partition key: phone_number, sort key: timestamp
 
 ### WhatsApp Credentials
-- ✅ WHATSAPP_TOKEN stored in `.env` and AWS Secrets Manager (`gold-agent/whatsapp`)
+- ✅ WHATSAPP_TOKEN — permanent System User token (no expiry) in `.env` and Secrets Manager
 - ✅ WHATSAPP_PHONE_NUMBER_ID: `1171841486002553`
 - ✅ WHATSAPP_VERIFY_TOKEN: `goldagent_webhook_2026`
-- ⚠️ Token is temporary (24h). Need permanent System User token before deployment.
 
 ### Shared Layer (`src/shared/`)
 - ✅ `shared/models/user.py` — User dataclass with DynamoDB serialisation
@@ -1064,8 +1084,19 @@ Run: `pytest tests/` — 134 passed, 41 skipped, 0 failed
 
 ### Infrastructure
 - ✅ `template.yml` updated — WhatsAppHandlerFunction, AgentBrainFunction, AlertCheckerFunction + API Gateway
-- ✅ `requirements.txt` updated — added `anthropic==0.40.0`
+- ✅ `requirements.txt` updated — added `anthropic==0.40.0`, removed `boto3` (provided by Lambda runtime)
 - ✅ Python package symlinks created: `whatsapp_handler → whatsapp-handler`, `agent_brain → agent-brain`, `alert_checker → alert-checker`
+- ✅ `.samignore` updated — `**/.terraform/` pattern added to properly exclude nested Terraform cache
+- ✅ `dynamo_writer.py` (consolidator) — now writes `price_22k_inr`, `price_24k_inr`, `city_rates` using RapidAPI Indian city averages
+- ✅ `dynamo_reader.py` — `get_latest_snapshot()` rewritten: scans all per-metal rows (table has 1 row per metal, not 1 row per date)
+- ✅ `price.py` — `PriceSnapshot.from_dynamo_rows()` added: reads `price_22k_inr`/`price_24k_inr` from DB directly, falls back to spot price calculation only if missing
+- ✅ `context_builder.py` — city_rates values are strings in DB, converted to float on display
+- ✅ `prompt_builder.py` — `{city}` in template escaped as `{{city}}` to prevent Python format() KeyError
+
+### SAM Deploy Notes
+- Deploy command: `sam build && sam deploy --region ap-south-1 --no-confirm-changeset`
+- Terraform cache (`infra/terraform/.terraform/`) must not exist when building — delete it before `sam build` if it reappears (`rm -rf infra/terraform/.terraform`)
+- `boto3` is NOT in `requirements.txt` — Lambda runtime provides it
 
 ---
 
@@ -1083,65 +1114,85 @@ Run: `pytest tests/` — 134 passed, 41 skipped, 0 failed
 
 **Design principle established:** Claude handles conversation only. Any action that writes to the database must go through a dedicated handler that confirms only after the write succeeds.
 
+### Issue 2 — Lambda package too large (2026-05-22)
+**Symptom:** `sam deploy` failed — "Unzipped size must be smaller than 262144000 bytes"
+**Root cause:** `infra/terraform/.terraform/` (Terraform provider cache, 692MB) was bundled into every Lambda. `.samignore` had `infra/` but the pattern only matches top-level directories — not nested paths like `infra/terraform/.terraform/`.
+**Fix:** Delete the cache (`rm -rf infra/terraform/.terraform`) — it's local only, terraform recreates it with `terraform init`. Added `**/.terraform/` to `.samignore`. Also removed `boto3` from `requirements.txt` (Lambda runtime provides it).
+
+### Issue 3 — API Gateway permission denied during deploy (2026-05-22)
+**Symptom:** CloudFormation failed — "no identity-based policy allows the apigateway:POST action"
+**Root cause:** `gold-agent-dev` IAM user had 10 managed policies (AWS limit) — no room for `AmazonAPIGatewayAdministrator`.
+**Fix:** Added an **inline policy** `gold-agent-apigateway` (separate quota from managed policies):
+```bash
+aws iam put-user-policy --user-name gold-agent-dev --policy-name gold-agent-apigateway \
+  --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"apigateway:*","Resource":"*"}]}'
+```
+
+### Issue 4 — DynamoDB schema mismatch: snapshot_date key doesn't exist (2026-05-22)
+**Symptom:** Bot replied "Sorry, something went wrong" — `ValidationException: The provided key element does not match the schema`
+**Root cause:** `get_latest_snapshot()` used `table.get_item(Key={"snapshot_date": today})` but the table's partition key is `metal` (one row per metal, not one row per date).
+**Fix:** Rewrote `get_latest_snapshot()` to `table.scan()` all rows. Added `PriceSnapshot.from_dynamo_rows(rows)` class method to build the snapshot from per-metal rows.
+
+### Issue 5 — Prompt template KeyError: 'city' (2026-05-22)
+**Symptom:** Bot replied "Sorry, something went wrong" — `KeyError: 'city'`
+**Root cause:** System prompt template contained `"I don't have {city} rates today"` — Python's `.format()` treated `{city}` as a placeholder but no `city` kwarg was passed.
+**Fix:** Escaped the braces in the template string: `{{city}}`.
+
+### Issue 7 — alert_remove and alert_list crashing with "something went wrong" (2026-05-22)
+**Symptom:** Setting an alert worked. Saying "remove my gold alert" returned the error fallback.
+**Root cause:** `gold-agent-alert-preferences` was created with `alert_id` as the only partition key. But every code path that reads or updates alerts (`get_user_alerts`, `deactivate_alert`, `record_alert_trigger`) uses a composite key `{phone_number, alert_id}`. `put_alert` appeared to work because `put_item` is lenient — it just requires the partition key to be present in the item, and `alert_id` was. Everything else failed silently with a DynamoDB exception.
+**Fix:** Deleted and recreated the table with the correct composite key: `phone_number` (HASH) + `alert_id` (RANGE). Also corrected context.md which documented the key incorrectly.
+
+### Issue 6 — Bot showed wrong gold price (~₹9,000/gram instead of ~₹14,600/gram) (2026-05-22)
+**Symptom:** Bot showed 22K gold at ~₹9,000/gram. Actual Indian market price was ~₹14,600/gram.
+**Root cause:** `price_22k_inr` was calculated by dividing the international spot price by troy oz and applying a purity ratio — this gives the London spot equivalent, NOT the Indian retail price (which includes import duty, GST, and other charges). The RapidAPI scraper WAS fetching correct Indian prices but `dynamo_writer.py` never wrote `price_22k_inr`, `price_24k_inr`, or `city_rates` to DynamoDB — these fields were silently dropped.
+**Fix:**
+- `dynamo_writer.py`: now calculates `price_22k_inr`/`price_24k_inr` as average of Indian city 22K/24K prices from RapidAPI (per gram), excluding international locations. Writes `city_rates` as `{city: "price_per_10g"}` string map.
+- `price.py` `from_dynamo_rows()`: reads `price_22k_inr`/`price_24k_inr` from DB directly; only falls back to spot-price calculation if those fields are absent.
+- `context_builder.py`: converts string city_rate to float before formatting.
+
 ---
 
-## 🚀 Next Steps — Phase 2 Deployment
+## ⚠️ Known Limitation — Haiku 4.5 (2026-05-22)
+Haiku 4.5 (`claude-haiku-4-5-20251001`) was tested on `price_query` intent and returned completely wrong prices (₹895/gram instead of ₹14,558/gram). It does not reliably follow context-grounded instructions when the system prompt contains Indian-style number formatting (₹4,29,897 lakhs notation).
 
-### Step 1 — Get permanent WhatsApp token
-1. In Meta developer console → Business Settings → System Users
-2. Create a System User with `whatsapp_business_messaging` permission
-3. Generate a permanent token (no expiry)
-4. Update AWS Secrets Manager: `aws secretsmanager update-secret --name gold-agent/whatsapp ...`
+**Current rule:** Only use Haiku for tasks with NO live price data in the context. In `claude_client.py`, `_HAIKU_INTENTS` is an empty set — reserved for future use. `alert_setup` extraction in `conversation/alert_setup.py` uses Haiku safely (pure JSON extraction, no price data).
 
-### Step 2 — Store Anthropic API key in Secrets Manager
+---
+
+## 🚀 Next Steps — Phase 3
+
+Phase 2 is complete and live. Phase 3 is crowdsourced jeweller rates, location services, and gamification.
+
+Before starting Phase 3, consider:
+- Add more test phone numbers to Meta sandbox (currently limited to whitelisted numbers in dev mode)
+- Submit WhatsApp message templates for approval (price_alert, weekly_digest, festival_advisory) to enable proactive outbound messages
+- Monitor CloudWatch logs for any runtime errors in production
+
+### Re-deploy command (for any future changes)
 ```bash
-aws secretsmanager create-secret \
-  --name gold-agent/anthropic \
-  --region ap-south-1 \
-  --secret-string '{"ANTHROPIC_API_KEY": "your_key_here"}'
+sam build && sam deploy --region ap-south-1 --no-confirm-changeset
+```
+After deploy, trigger consolidator if price data needs refresh:
+```bash
+aws lambda invoke --function-name gold-agent-consolidator --region ap-south-1 --payload '{}' /tmp/out.json
 ```
 
-### Step 3 — Create Phase 2 IAM role
-Create `gold-agent-phase2-role` with permissions for:
-- DynamoDB: read/write on all gold-agent-* tables
-- Secrets Manager: read gold-agent/whatsapp + gold-agent/anthropic
-- Lambda: invoke gold-agent-brain
-- CloudWatch Logs: create log groups
+---
 
-### Step 4 — Create Phase 2 DynamoDB tables
-```bash
-# Users table
-aws dynamodb create-table --table-name gold-agent-users \
-  --attribute-definitions AttributeName=phone_number,AttributeType=S \
-  --key-schema AttributeName=phone_number,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST --region ap-south-1
+## ✅ Cost Optimisations Deployed (2026-05-22)
 
-# Alert preferences table
-aws dynamodb create-table --table-name gold-agent-alert-preferences \
-  --attribute-definitions AttributeName=phone_number,AttributeType=S AttributeName=alert_id,AttributeType=S \
-  --key-schema AttributeName=phone_number,KeyType=HASH AttributeName=alert_id,KeyType=RANGE \
-  --billing-mode PAY_PER_REQUEST --region ap-south-1
+### 1. Model Tiering
+- `src/lambdas/agent-brain/claude_client.py` — `ask()` accepts `intent`, routes to model via `model_for_intent()`
+- **All chat intents → Sonnet 4.6** — Haiku 4.5 was tested on price_query and failed badly (returned ₹895/gram instead of ₹14,558/gram). It does not reliably follow context-grounded instructions with Indian number formatting.
+- **`alert_setup` extraction → Haiku 4.5** — pure JSON extraction, no price data, works correctly
+- `src/lambdas/agent-brain/handler.py` — passes `intent` through to `ask()`
+- `_HAIKU_INTENTS` is an empty set in claude_client.py — reserved for future use if a suitable task is identified
 
-# Conversation history table
-aws dynamodb create-table --table-name gold-agent-conversation-history \
-  --attribute-definitions AttributeName=phone_number,AttributeType=S AttributeName=timestamp,AttributeType=S \
-  --key-schema AttributeName=phone_number,KeyType=HASH AttributeName=timestamp,KeyType=RANGE \
-  --billing-mode PAY_PER_REQUEST --region ap-south-1
-```
-
-### Step 5 — SAM build and deploy
-```bash
-sam build && sam deploy --guided
-```
-Note the `WebhookUrl` output — this is what goes into Meta webhook config.
-
-### Step 6 — Configure Meta webhook
-1. Meta developer console → WhatsApp → Configuration
-2. Webhook URL: paste the API Gateway URL from Step 5
-3. Verify token: `goldagent_webhook_2026`
-4. Subscribe to: messages, message_deliveries, message_reads
-
-### Step 7 — Test end to end
-Send "what is gold price today" to the WhatsApp number and verify reply arrives.
+### 2. DynamoDB Price Cache
+- `src/lambdas/agent-brain/context_builder.py` — module-level in-memory cache with 1-hour TTL
+- Warm Lambda containers serve price data from memory — zero DynamoDB reads after first call
+- Cold starts always fetch fresh from DynamoDB
+- Safe: prices refresh once daily, 1-hour TTL is conservative
 
 ---
