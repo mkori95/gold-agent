@@ -935,5 +935,5 @@ cp .env.example .env
 
 ---
 
-*Last updated: Session 4 — Scraper engine complete (base_scraper, api_fetcher, html_scraper, data_normaliser)*
+*Last updated: Session 15 — Phase 2 code complete (whatsapp-handler, agent-brain, alert-checker, shared layer)*
 *This README is updated at the end of every working session*
