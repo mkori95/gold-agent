@@ -10,13 +10,12 @@ Event:
     "city": "Hyderabad",
     "language_hint": "te"
   }
-Flow: download OGG → ffmpeg → WAV → Whisper base → delete OGG → invoke agent-brain.
+Flow: download OGG → Whisper base (calls ffmpeg internally) → delete OGG → invoke agent-brain.
 """
 
 import json
 import logging
 import os
-import subprocess
 import tempfile
 
 import boto3
@@ -68,21 +67,12 @@ def handler(event: dict, context) -> dict:
 
     with tempfile.TemporaryDirectory() as tmp:
         ogg_path = os.path.join(tmp, "audio.ogg")
-        wav_path = os.path.join(tmp, "audio.wav")
 
         logger.info(f"Downloading s3://{s3_bucket}/{s3_key}")
         s3.download_file(s3_bucket, s3_key, ogg_path)
 
-        # OGG/Opus → WAV 16 kHz mono (Whisper requirement)
-        result = subprocess.run(
-            ["ffmpeg", "-i", ogg_path, "-ar", "16000", "-ac", "1", "-y", wav_path],
-            capture_output=True,
-        )
-        if result.returncode != 0:
-            logger.error(f"ffmpeg failed: {result.stderr.decode()}")
-            raise RuntimeError("Audio conversion failed")
-
-        output = _get_model().transcribe(wav_path, fp16=False)
+        # Whisper calls the bundled ffmpeg internally to decode OGG/Opus
+        output = _get_model().transcribe(ogg_path, fp16=False)
 
     # Delete from S3 immediately — don't wait until after agent-brain invoke
     try:
