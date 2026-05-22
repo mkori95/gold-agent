@@ -178,8 +178,8 @@ Resources:
       ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/gold-agent-whisper:latest"
       Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
       Description: Transcribes WhatsApp voice notes using Whisper base model
-      Timeout: 60
-      MemorySize: 1024
+      Timeout: 120
+      MemorySize: 3008
       Environment:
         Variables:
           AGENT_BRAIN_FUNCTION_NAME: gold-agent-brain
