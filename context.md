@@ -986,7 +986,7 @@ Duration: ~42 seconds
 ```
 
 ### All Unit Tests Passing (pytest format — 2026-05-21)
-Run: `pytest tests/` — 122 passed, 41 skipped, 0 failed
+Run: `pytest tests/` — 134 passed, 41 skipped, 0 failed
 
 **Phase 1 tests (unchanged):**
 - ✅ tests/unit/lambdas/test_trimmed_mean.py — 11 tests
@@ -1001,6 +1001,7 @@ Run: `pytest tests/` — 122 passed, 41 skipped, 0 failed
 - ✅ tests/unit/lambdas/test_intent_classifier.py — 12 tests
 - ✅ tests/unit/lambdas/test_message_parser.py — 5 tests
 - ✅ tests/unit/lambdas/test_alert_checker.py — 15 tests
+- ✅ tests/unit/lambdas/test_alert_setup.py — 12 tests (all 4 languages, both directions, failure paths)
 
 **Scraper tests (skipped — require live API keys):**
 - ⏭️ tests/unit/scrapers/test_gold_api_com.py — 6 tests
@@ -1040,12 +1041,19 @@ Run: `pytest tests/` — 122 passed, 41 skipped, 0 failed
 - ✅ `response_formatter.py` — Static help and unknown messages in 4 languages
 - ✅ `handler.py` — Lambda entry point: GET (webhook verify) + POST (messages), async invokes agent-brain
 
+### conversation Lambda (`src/lambdas/conversation/`)
+- ✅ `alert_setup.py` — Full alert setup handler:
+  1. Uses Claude to extract structured params (metal, direction, threshold_inr, karat) from any natural language in any of the 4 languages
+  2. Writes `AlertPreference` to DynamoDB if extraction succeeds
+  3. Sends honest confirmation in user's language only after write succeeds
+  4. If extraction fails, sends clear clarification with examples in user's language — never pretends to set an alert it didn't set
+
 ### agent-brain Lambda (`src/lambdas/agent-brain/`)
 - ✅ `context_builder.py` — Pulls latest prices from DynamoDB, formats for Claude
-- ✅ `prompt_builder.py` — System prompt: Gold Agent persona, language, prices, rules
+- ✅ `prompt_builder.py` — System prompt with explicit CAN/CANNOT list so Claude never overpromises (honest about trends, city rates, historical data, alerts)
 - ✅ `claude_client.py` — Calls Claude claude-sonnet-4-6 with prompt caching on system prompt
 - ✅ `language_handler.py` — Appends language reminder to user messages
-- ✅ `handler.py` — Lambda entry point: builds context → calls Claude → saves turn → sends WhatsApp reply
+- ✅ `handler.py` — Routes `alert_setup` to `conversation/alert_setup.py` before Claude is invoked; all other intents go to Claude with live price context
 
 ### alert-checker Lambda (`src/lambdas/alert-checker/`)
 - ✅ `threshold_checker.py` — Gets per-gram INR price, checks against alert threshold
@@ -1058,6 +1066,22 @@ Run: `pytest tests/` — 122 passed, 41 skipped, 0 failed
 - ✅ `template.yml` updated — WhatsAppHandlerFunction, AgentBrainFunction, AlertCheckerFunction + API Gateway
 - ✅ `requirements.txt` updated — added `anthropic==0.40.0`
 - ✅ Python package symlinks created: `whatsapp_handler → whatsapp-handler`, `agent_brain → agent-brain`, `alert_checker → alert-checker`
+
+---
+
+## 🐛 Issues Found and Fixed
+
+### Issue 1 — Alert setup: Claude confirmed but backend did nothing (2026-05-21)
+**What happened:** When a user asked to set a price alert (in any language), `agent-brain` passed the message to Claude. Claude replied "I've set your alert" but nothing was written to DynamoDB. The alert-checker would never fire for that user.
+
+**Root cause:** `alert_setup` intent was treated like any other intent — routed to Claude for a natural language response. Claude has no way to write to DynamoDB.
+
+**Fix applied:**
+- Built `conversation/alert_setup.py`: Claude used only to extract structured params (metal, direction, threshold, karat) → writes `AlertPreference` to DynamoDB → sends confirmation only after write succeeds. If extraction fails, sends clear clarification in user's language with examples.
+- `agent-brain/handler.py`: `alert_setup` intent now bypasses Claude and goes directly to the dedicated handler. Claude is never involved in the alert write path.
+- `prompt_builder.py`: System prompt updated with explicit CAN/CANNOT list. Claude now says "routing your alert to the system" instead of claiming to set it.
+
+**Design principle established:** Claude handles conversation only. Any action that writes to the database must go through a dedicated handler that confirms only after the write succeeds.
 
 ---
 
