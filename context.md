@@ -1033,7 +1033,7 @@ Run: `pytest tests/` — 134 passed, 41 skipped, 0 failed
 
 ### DynamoDB Tables (Phase 2 — all PAY_PER_REQUEST)
 - ✅ `gold-agent-users` — partition key: phone_number
-- ✅ `gold-agent-alert-preferences` — partition key: alert_id
+- ✅ `gold-agent-alert-preferences` — partition key: phone_number (HASH) + alert_id (RANGE)
 - ✅ `gold-agent-conversation-history` — partition key: phone_number, sort key: timestamp
 
 ### WhatsApp Credentials
@@ -1138,6 +1138,11 @@ aws iam put-user-policy --user-name gold-agent-dev --policy-name gold-agent-apig
 **Root cause:** System prompt template contained `"I don't have {city} rates today"` — Python's `.format()` treated `{city}` as a placeholder but no `city` kwarg was passed.
 **Fix:** Escaped the braces in the template string: `{{city}}`.
 
+### Issue 7 — alert_remove and alert_list crashing with "something went wrong" (2026-05-22)
+**Symptom:** Setting an alert worked. Saying "remove my gold alert" returned the error fallback.
+**Root cause:** `gold-agent-alert-preferences` was created with `alert_id` as the only partition key. But every code path that reads or updates alerts (`get_user_alerts`, `deactivate_alert`, `record_alert_trigger`) uses a composite key `{phone_number, alert_id}`. `put_alert` appeared to work because `put_item` is lenient — it just requires the partition key to be present in the item, and `alert_id` was. Everything else failed silently with a DynamoDB exception.
+**Fix:** Deleted and recreated the table with the correct composite key: `phone_number` (HASH) + `alert_id` (RANGE). Also corrected context.md which documented the key incorrectly.
+
 ### Issue 6 — Bot showed wrong gold price (~₹9,000/gram instead of ~₹14,600/gram) (2026-05-22)
 **Symptom:** Bot showed 22K gold at ~₹9,000/gram. Actual Indian market price was ~₹14,600/gram.
 **Root cause:** `price_22k_inr` was calculated by dividing the international spot price by troy oz and applying a purity ratio — this gives the London spot equivalent, NOT the Indian retail price (which includes import duty, GST, and other charges). The RapidAPI scraper WAS fetching correct Indian prices but `dynamo_writer.py` never wrote `price_22k_inr`, `price_24k_inr`, or `city_rates` to DynamoDB — these fields were silently dropped.
@@ -1145,6 +1150,13 @@ aws iam put-user-policy --user-name gold-agent-dev --policy-name gold-agent-apig
 - `dynamo_writer.py`: now calculates `price_22k_inr`/`price_24k_inr` as average of Indian city 22K/24K prices from RapidAPI (per gram), excluding international locations. Writes `city_rates` as `{city: "price_per_10g"}` string map.
 - `price.py` `from_dynamo_rows()`: reads `price_22k_inr`/`price_24k_inr` from DB directly; only falls back to spot-price calculation if those fields are absent.
 - `context_builder.py`: converts string city_rate to float before formatting.
+
+---
+
+## ⚠️ Known Limitation — Haiku 4.5 (2026-05-22)
+Haiku 4.5 (`claude-haiku-4-5-20251001`) was tested on `price_query` intent and returned completely wrong prices (₹895/gram instead of ₹14,558/gram). It does not reliably follow context-grounded instructions when the system prompt contains Indian-style number formatting (₹4,29,897 lakhs notation).
+
+**Current rule:** Only use Haiku for tasks with NO live price data in the context. In `claude_client.py`, `_HAIKU_INTENTS` is an empty set — reserved for future use. `alert_setup` extraction in `conversation/alert_setup.py` uses Haiku safely (pure JSON extraction, no price data).
 
 ---
 
@@ -1165,5 +1177,22 @@ After deploy, trigger consolidator if price data needs refresh:
 ```bash
 aws lambda invoke --function-name gold-agent-consolidator --region ap-south-1 --payload '{}' /tmp/out.json
 ```
+
+---
+
+## ✅ Cost Optimisations Deployed (2026-05-22)
+
+### 1. Model Tiering
+- `src/lambdas/agent-brain/claude_client.py` — `ask()` accepts `intent`, routes to model via `model_for_intent()`
+- **All chat intents → Sonnet 4.6** — Haiku 4.5 was tested on price_query and failed badly (returned ₹895/gram instead of ₹14,558/gram). It does not reliably follow context-grounded instructions with Indian number formatting.
+- **`alert_setup` extraction → Haiku 4.5** — pure JSON extraction, no price data, works correctly
+- `src/lambdas/agent-brain/handler.py` — passes `intent` through to `ask()`
+- `_HAIKU_INTENTS` is an empty set in claude_client.py — reserved for future use if a suitable task is identified
+
+### 2. DynamoDB Price Cache
+- `src/lambdas/agent-brain/context_builder.py` — module-level in-memory cache with 1-hour TTL
+- Warm Lambda containers serve price data from memory — zero DynamoDB reads after first call
+- Cold starts always fetch fresh from DynamoDB
+- Safe: prices refresh once daily, 1-hour TTL is conservative
 
 ---

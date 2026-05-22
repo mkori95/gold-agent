@@ -2,6 +2,20 @@ import re
 
 # Intent keywords — ordered most-specific first
 _PATTERNS = [
+    ("alert_remove", [
+        r"remove.*alert", r"cancel.*alert", r"delete.*alert", r"stop.*alert",
+        r"alert.*remove", r"alert.*cancel", r"alert.*delete", r"alert.*stop",
+        r"अलर्ट.*हटाओ", r"हटाओ.*अलर्ट", r"अलर्ट.*बंद",
+        r"எச்சரிக்கை.*நீக்க", r"நீக்க.*எச்சரிக்கை",
+        r"హెచ్చరిక.*తొలగించు", r"తొలగించు.*హెచ్చరిక",
+    ]),
+    ("alert_list", [
+        r"my alert", r"show.*alert", r"list.*alert", r"what alert",
+        r"which alert", r"see.*alert", r"check.*alert", r"view.*alert",
+        r"मेरा.*अलर्ट", r"अलर्ट.*दिखाओ", r"अलर्ट.*देखना",
+        r"என்.*எச்சரிக்கை", r"எச்சரிக்கை.*காட்டு",
+        r"నా.*హెచ్చరిక", r"హెచ్చరిక.*చూపు",
+    ]),
     ("alert_setup", [
         r"alert", r"notify", r"notification", r"inform me",
         r"बताओ जब", r"अलर्ट", r"எச்சரிக்கை", r"హెచ్చరిక",

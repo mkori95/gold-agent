@@ -95,10 +95,11 @@ User never has to select a language manually.
 
 ### Price Alert Flow
 When a user asks to set an alert in any language:
-1. The message is parsed to extract metal, direction, and target price
-2. The alert is written to DynamoDB
-3. The user receives a confirmation only after the alert is saved
-4. The alert-checker Lambda runs every hour and sends a WhatsApp notification when the price crosses the threshold
+1. Claude (Haiku) extracts metal, direction, and target price as structured JSON
+2. The alert is written to DynamoDB (`gold-agent-alert-preferences`)
+3. The user receives a confirmation only after the write succeeds — never before
+4. The alert-checker Lambda runs hourly and sends a WhatsApp notification when the threshold is crossed
+5. Users can list alerts ("show my alerts") or remove them ("remove my gold alert") at any time
 
 ---
 
@@ -106,7 +107,7 @@ When a user asks to set an alert in any language:
 
 - Fully serverless on AWS — no EC2, everything is Lambda
 - Primary channel: WhatsApp Business API (Meta Cloud API)
-- AI brain: Anthropic Claude API (claude-sonnet-4-6)
+- AI brain: Anthropic Claude API — Sonnet 4.6 for all chat intents; Haiku 4.5 for alert parameter extraction only
 - Database: DynamoDB + S3 + Athena
 - Infrastructure as code: AWS SAM
 - Region: ap-south-1 (Mumbai) — closest to India, Indian IP address
@@ -958,5 +959,13 @@ cp .env.example .env
 
 ---
 
-*Last updated: Session 15 — Phase 2 code complete (whatsapp-handler, agent-brain, alert-checker, alert-setup, shared layer)*
+| Haiku 4.5 for chat | Not suitable — gave wrong prices (₹895 vs ₹14,558) when price context is in system prompt. Only used for alert parameter extraction (no live data). |
+| DynamoDB price cache | Module-level 1-hour TTL cache in context_builder.py — warm Lambda containers skip DynamoDB reads entirely |
+| alert_preferences key | Composite key: phone_number (HASH) + alert_id (RANGE). alert_id format: `{phone}#{metal}#{direction}` |
+| Unknown intent routing | Unknown messages go to agent-brain (not a static fallback) — often a follow-up to a prior conversation |
+| Session timeout | Conversation history cleared after 30 minutes of inactivity to prevent stale context confusing Claude |
+
+---
+
+*Last updated: 2026-05-22 — Phase 2 live and stable: prices correct, alerts working (set/list/remove), all 4 languages tested*
 *This README is updated at the end of every working session*
