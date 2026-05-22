@@ -2,6 +2,20 @@ import re
 
 # Intent keywords — ordered most-specific first
 _PATTERNS = [
+    ("summary_subscribe", [
+        r"send.*daily", r"daily.*update", r"daily.*summary", r"morning.*update",
+        r"subscribe.*summary", r"start.*summary", r"yes.*summary", r"want.*summary",
+        r"रोज.*भेजो", r"रोज.*भाव", r"रोज.*अपडेट",
+        r"தினமும்.*விலை", r"தினசரி.*அனுப்பு",
+        r"రోజూ.*ధర", r"రోజూ.*పంపు",
+    ]),
+    ("summary_unsubscribe", [
+        r"stop.*summary", r"stop.*daily", r"unsubscribe.*summary",
+        r"no.*daily", r"cancel.*summary", r"don.t.*send",
+        r"रोज.*बंद", r"अपडेट.*बंद",
+        r"தினசரி.*நிறுத்து", r"அனுப்பாதே",
+        r"రోజూ.*ఆపు", r"పంపకు",
+    ]),
     ("alert_remove", [
         r"remove.*alert", r"cancel.*alert", r"delete.*alert", r"stop.*alert",
         r"alert.*remove", r"alert.*cancel", r"alert.*delete", r"alert.*stop",

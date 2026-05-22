@@ -160,12 +160,14 @@ class DynamoWriter:
         INTERNATIONAL = {"united-states", "united-kingdom", "dubai"}
         price_22k_inr = None
         price_24k_inr = None
+        price_18k_inr = None
         if metal == "gold" and city_rates:
             indian_rates = {loc: v for loc, v in city_rates.items() if loc not in INTERNATIONAL}
             prices_22k = [v.get("22K") for v in indian_rates.values() if isinstance(v, dict) and v.get("22K")]
             prices_24k = [v.get("24K") for v in indian_rates.values() if isinstance(v, dict) and v.get("24K")]
             if prices_22k:
                 price_22k_inr = str(round(sum(prices_22k) / len(prices_22k) / 10, 2))
+                price_18k_inr = str(round(float(price_22k_inr) * 18 / 22, 2))
             if prices_24k:
                 price_24k_inr = str(round(sum(prices_24k) / len(prices_24k) / 10, 2))
 
@@ -181,6 +183,7 @@ class DynamoWriter:
             "metal":          metal,
             "price_usd":      str(metal_data.get("price_usd") or ""),
             "price_inr":      str(metal_data.get("price_inr") or ""),
+            "price_18k_inr":  price_18k_inr or "",
             "price_22k_inr":  price_22k_inr or "",
             "price_24k_inr":  price_24k_inr or "",
             "city_rates":     city_rates_simple,

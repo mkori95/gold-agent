@@ -45,9 +45,32 @@ UNKNOWN_MESSAGES = {
 }
 
 
+SUMMARY_SUBSCRIBE_MESSAGES = {
+    "en": "Done! You'll get a daily gold price update every morning around 11:45 AM IST.\n\nReply *stop summary* anytime to unsubscribe.",
+    "hi": "हो गया! आपको हर सुबह लगभग 11:45 बजे सोने का भाव मिलेगा।\n\n*stop summary* लिखकर कभी भी बंद कर सकते हैं।",
+    "ta": "சரி! தினமும் காலை 11:45 மணி அளவில் தங்கம் விலை அனுப்பப்படும்.\n\n*stop summary* என்று தட்டச்சு செய்து நிறுத்தலாம்.",
+    "te": "సరే! ప్రతిరోజూ ఉదయం 11:45 గంటలకు బంగారం ధర పంపబడుతుంది.\n\n*stop summary* అని టైప్ చేసి ఎప్పుడైనా ఆపవచ్చు.",
+}
+
+SUMMARY_UNSUBSCRIBE_MESSAGES = {
+    "en": "Done! You won't receive the daily summary anymore. Reply *daily update* anytime to subscribe again.",
+    "hi": "ठीक है! अब आपको रोज़ का अपडेट नहीं आएगा। दोबारा शुरू करने के लिए *daily update* लिखें।",
+    "ta": "சரி! இனி தினசரி சுருக்கம் வராது. மீண்டும் பெற *daily update* என்று தட்டச்சு செய்யுங்கள்.",
+    "te": "సరే! ఇకపై రోజువారీ సారాంశం రాదు. మళ్ళీ పొందడానికి *daily update* అని టైప్ చేయండి.",
+}
+
+
 def help_message(language: str) -> str:
     return HELP_MESSAGES.get(language, HELP_MESSAGES["en"])
 
 
 def unknown_message(language: str) -> str:
     return UNKNOWN_MESSAGES.get(language, UNKNOWN_MESSAGES["en"])
+
+
+def summary_subscribe_message(language: str) -> str:
+    return SUMMARY_SUBSCRIBE_MESSAGES.get(language, SUMMARY_SUBSCRIBE_MESSAGES["en"])
+
+
+def summary_unsubscribe_message(language: str) -> str:
+    return SUMMARY_UNSUBSCRIBE_MESSAGES.get(language, SUMMARY_UNSUBSCRIBE_MESSAGES["en"])

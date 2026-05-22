@@ -1180,6 +1180,42 @@ aws lambda invoke --function-name gold-agent-consolidator --region ap-south-1 --
 
 ---
 
+## ✅ Enhancement 1 — Daily Summary (2026-05-22, code complete, NOT YET DEPLOYED)
+
+### 18K Price Fix
+- `src/lambdas/consolidator/dynamo_writer.py` — writes `price_18k_inr` derived from `price_22k_inr * 18/22` (same Indian retail basis)
+- `src/shared/models/price.py` — `MetalPrice` dataclass has `price_18k_inr` field; `from_dynamo_rows()` reads it with fallback derivation
+- `src/lambdas/agent-brain/context_builder.py` — displays 24K → 22K → 18K in that order in price block
+
+### S3 Historical Reader
+- `src/shared/db/s3_reader.py` — written from scratch (was a stub)
+- `get_snapshot_for_date(date)` — returns `(snapshot_dict, actual_date_str)`, walks back up to 14 days if exact date missing
+- `get_price_for_metal(snapshot, metal)` — extracts per-gram prices from raw S3 snapshot dict
+
+### Daily Digest Lambda (`src/lambdas/daily-digest/`)
+- `price_diff.py` — computes yesterday + last week diffs, always returns the actual date used for comparison
+- `digest_builder.py` — builds 4-language message with city-specific 22K price (falls back to national average)
+- `handler.py` — scans opted-in users, sends summary, logs sent/failed counts
+- `src/lambdas/daily_digest` symlink → `daily-digest` (SAM handler path convention)
+
+### Opt-In System
+- `src/shared/models/user.py` — `daily_summary: bool = False` field added
+- `src/shared/db/dynamo_writer.py` — `toggle_daily_summary(phone_number, enabled)` function
+- `src/shared/db/dynamo_reader.py` — `get_summary_subscribers()` scans users with `daily_summary = true`
+- `intent_classifier.py` — `summary_subscribe` and `summary_unsubscribe` patterns (before alert patterns)
+- `whatsapp-handler/handler.py` — handles both intents directly, no agent-brain needed
+- `response_formatter.py` — 4-language subscribe/unsubscribe confirmation messages
+
+### EventBridge Schedules
+- Consolidator: `cron(45 5 * * ? *)` = 11:15 AM IST (was 6 AM IST)
+- Daily digest: `cron(15 6 * * ? *)` = 11:45 AM IST (new)
+- Reasoning: Indian jewellers update 10AM-12PM. 11:15AM consolidator captures most cities. 11:45AM summary goes out 30 min later.
+
+### WhatsApp Template
+Draft agreed, not yet submitted to Meta for approval. Category: UTILITY. Variables: city, date, price_22k, price_24k, price_18k, price_silver, price_platinum, diff values, updated_time, yesterday_date.
+
+---
+
 ## ✅ Cost Optimisations Deployed (2026-05-22)
 
 ### 1. Model Tiering

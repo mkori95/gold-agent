@@ -14,7 +14,10 @@ from src.lambdas.whatsapp_handler.message_parser import parse_incoming
 from src.lambdas.whatsapp_handler.language_detector import detect_language
 from src.lambdas.whatsapp_handler.intent_classifier import classify_intent
 from src.lambdas.whatsapp_handler.user_manager import get_or_create_user
-from src.lambdas.whatsapp_handler.response_formatter import help_message
+from src.lambdas.whatsapp_handler.response_formatter import (
+    help_message, summary_subscribe_message, summary_unsubscribe_message,
+)
+from src.shared.db.dynamo_writer import toggle_daily_summary
 from src.shared.notifications.whatsapp_client import send_text, mark_read
 from src.shared.utils.logger import get_logger
 
@@ -105,6 +108,16 @@ def _handle_message(event: dict) -> dict:
 
     if intent == "help" or intent == "greeting":
         send_text(phone_number, help_message(effective_language))
+        return _response(200, {"status": "ok"})
+
+    if intent == "summary_subscribe":
+        toggle_daily_summary(phone_number, enabled=True)
+        send_text(phone_number, summary_subscribe_message(effective_language))
+        return _response(200, {"status": "ok"})
+
+    if intent == "summary_unsubscribe":
+        toggle_daily_summary(phone_number, enabled=False)
+        send_text(phone_number, summary_unsubscribe_message(effective_language))
         return _response(200, {"status": "ok"})
 
     # For all other intents (including "unknown") — invoke agent-brain async.

@@ -50,6 +50,13 @@ Resources:
       Handler: src/lambdas/consolidator/handler.handler
       Role: arn:aws:iam::077419561931:role/gold-agent-consolidator-role
       Description: Runs all scrapers and consolidates prices into snapshot
+      Events:
+        DailyRun:
+          Type: Schedule
+          Properties:
+            Schedule: cron(45 5 * * ? *)
+            Name: gold-agent-consolidator-daily
+            Description: Run consolidator at 11:15 AM IST (05:45 UTC) daily
 
   # ----------------------------------------------------------
   # Phase 2 — WhatsApp Handler
@@ -127,6 +134,31 @@ Resources:
             Schedule: rate(1 hour)
             Name: gold-agent-alert-checker-hourly
             Description: Check price alerts every hour
+
+  # ----------------------------------------------------------
+  # Phase 2 — Daily Digest
+  # Sends morning price summary to opted-in subscribers
+  # ----------------------------------------------------------
+  DailyDigestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: gold-agent-daily-digest
+      CodeUri: .
+      Handler: src/lambdas/daily_digest/handler.handler
+      Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
+      Description: Sends daily gold price summary to opted-in WhatsApp subscribers
+      Timeout: 300
+      Environment:
+        Variables:
+          WHATSAPP_TOKEN: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_TOKEN}}"
+          WHATSAPP_PHONE_NUMBER_ID: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_PHONE_NUMBER_ID}}"
+      Events:
+        DailySummary:
+          Type: Schedule
+          Properties:
+            Schedule: cron(15 6 * * ? *)
+            Name: gold-agent-daily-digest
+            Description: Send daily summary at 11:45 AM IST (06:15 UTC)
 
   # Phase 3: RateValidatorFunction
   # Phase 4: ReportFunction

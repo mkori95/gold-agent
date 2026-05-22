@@ -49,6 +49,17 @@ def get_all_active_alerts() -> list[AlertPreference]:
     return [AlertPreference.from_dynamo(i) for i in resp.get("Items", [])]
 
 
+def get_summary_subscribers() -> list:
+    """Returns all users who have opted in to the daily summary."""
+    table = get_table(TABLE_USERS)
+    resp = table.scan(
+        FilterExpression="daily_summary = :t",
+        ExpressionAttributeValues={":t": True},
+    )
+    from src.shared.models.user import User
+    return [User.from_dynamo(i) for i in resp.get("Items", [])]
+
+
 def get_conversation_history(phone_number: str, limit: int = 5) -> list[dict]:
     table = get_table(TABLE_HISTORY)
     resp = table.query(
