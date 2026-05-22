@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
-Description: Gold Agent — Serverless Data Pipeline
+Description: Gold Agent — Serverless Precious Metals Advisor
 
 # ============================================================
 # Global settings — applied to all Lambda functions
@@ -17,8 +17,11 @@ Globals:
         DYNAMO_TABLE_LIVE_PRICES: gold-agent-live-prices
         DYNAMO_TABLE_SOURCE_HEALTH: gold-agent-source-health
         DYNAMO_TABLE_QUOTA_TRACKER: gold-agent-quota-tracker
+        DYNAMO_TABLE_USERS: gold-agent-users
+        DYNAMO_TABLE_ALERT_PREFERENCES: gold-agent-alert-preferences
+        DYNAMO_TABLE_CONVERSATION_HISTORY: gold-agent-conversation-history
         AWS_REGION_NAME: ap-south-1
-        #CONFIG_PATH: /var/task/config
+        AGENT_BRAIN_FUNCTION_NAME: gold-agent-brain
 
 # ============================================================
 # Resources
@@ -26,7 +29,17 @@ Globals:
 Resources:
 
   # ----------------------------------------------------------
-  # Consolidator Lambda
+  # API Gateway — receives Meta WhatsApp webhooks
+  # ----------------------------------------------------------
+  GoldAgentApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: gold-agent-api
+      StageName: prod
+      Description: Gold Agent WhatsApp webhook endpoint
+
+  # ----------------------------------------------------------
+  # Phase 1 — Consolidator
   # Runs all scrapers, merges prices, writes to DynamoDB + S3
   # ----------------------------------------------------------
   ConsolidatorFunction:
@@ -38,12 +51,85 @@ Resources:
       Role: arn:aws:iam::077419561931:role/gold-agent-consolidator-role
       Description: Runs all scrapers and consolidates prices into snapshot
 
-      # Future Lambda functions — add here as phases progress
-      # Phase 2: WhatsAppHandlerFunction
-      # Phase 2: AgentBrainFunction
-      # Phase 2: AlertCheckerFunction
-      # Phase 3: RateValidatorFunction
-      # Phase 4: ReportFunction
+  # ----------------------------------------------------------
+  # Phase 2 — WhatsApp Handler
+  # Receives Meta webhooks, validates, routes to agent-brain
+  # ----------------------------------------------------------
+  WhatsAppHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: gold-agent-whatsapp-handler
+      CodeUri: .
+      Handler: src/lambdas/whatsapp_handler/handler.handler
+      Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
+      Description: Handles Meta WhatsApp webhooks and routes messages
+      Timeout: 30
+      Environment:
+        Variables:
+          WHATSAPP_VERIFY_TOKEN: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_VERIFY_TOKEN}}"
+          WHATSAPP_TOKEN: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_TOKEN}}"
+          WHATSAPP_PHONE_NUMBER_ID: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_PHONE_NUMBER_ID}}"
+      Events:
+        WebhookGet:
+          Type: Api
+          Properties:
+            RestApiId: !Ref GoldAgentApi
+            Path: /webhook
+            Method: GET
+        WebhookPost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref GoldAgentApi
+            Path: /webhook
+            Method: POST
+
+  # ----------------------------------------------------------
+  # Phase 2 — Agent Brain
+  # Invoked async by whatsapp-handler; calls Claude, replies
+  # ----------------------------------------------------------
+  AgentBrainFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: gold-agent-brain
+      CodeUri: .
+      Handler: src/lambdas/agent_brain/handler.handler
+      Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
+      Description: Calls Claude API and sends WhatsApp reply
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          ANTHROPIC_API_KEY: "{{resolve:secretsmanager:gold-agent/anthropic:SecretString:ANTHROPIC_API_KEY}}"
+          WHATSAPP_TOKEN: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_TOKEN}}"
+          WHATSAPP_PHONE_NUMBER_ID: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_PHONE_NUMBER_ID}}"
+
+  # ----------------------------------------------------------
+  # Phase 2 — Alert Checker
+  # Runs hourly, checks price thresholds, sends WhatsApp alerts
+  # ----------------------------------------------------------
+  AlertCheckerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: gold-agent-alert-checker
+      CodeUri: .
+      Handler: src/lambdas/alert_checker/handler.handler
+      Role: arn:aws:iam::077419561931:role/gold-agent-phase2-role
+      Description: Checks user alert thresholds against live prices hourly
+      Timeout: 120
+      Environment:
+        Variables:
+          WHATSAPP_TOKEN: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_TOKEN}}"
+          WHATSAPP_PHONE_NUMBER_ID: "{{resolve:secretsmanager:gold-agent/whatsapp:SecretString:WHATSAPP_PHONE_NUMBER_ID}}"
+      Events:
+        HourlyCheck:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+            Name: gold-agent-alert-checker-hourly
+            Description: Check price alerts every hour
+
+  # Phase 3: RateValidatorFunction
+  # Phase 4: ReportFunction
 
 # ============================================================
 # Outputs
@@ -52,3 +138,19 @@ Outputs:
   ConsolidatorFunction:
     Description: Consolidator Lambda Function ARN
     Value: !GetAtt ConsolidatorFunction.Arn
+
+  WhatsAppHandlerFunction:
+    Description: WhatsApp Handler Lambda ARN
+    Value: !GetAtt WhatsAppHandlerFunction.Arn
+
+  AgentBrainFunction:
+    Description: Agent Brain Lambda ARN
+    Value: !GetAtt AgentBrainFunction.Arn
+
+  AlertCheckerFunction:
+    Description: Alert Checker Lambda ARN
+    Value: !GetAtt AlertCheckerFunction.Arn
+
+  WebhookUrl:
+    Description: Paste this URL into Meta WhatsApp webhook configuration
+    Value: !Sub "https://${GoldAgentApi}.execute-api.${AWS::Region}.amazonaws.com/prod/webhook"

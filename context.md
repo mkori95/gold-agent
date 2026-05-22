@@ -985,59 +985,163 @@ S3:       prices/2026/04/09/01:10.json + prices/latest.json ✅
 Duration: ~42 seconds
 ```
 
-### All Unit Tests Passing (pytest format — 2026-04-12)
-Run: `pytest tests/` — 83 passed, 41 skipped, 0 failed
+### All Unit Tests Passing (pytest format — 2026-05-21)
+Run: `pytest tests/` — 134 passed, 41 skipped, 0 failed
 
+**Phase 1 tests (unchanged):**
 - ✅ tests/unit/lambdas/test_trimmed_mean.py — 11 tests
 - ✅ tests/unit/lambdas/test_anomaly_detector.py — 16 tests
 - ✅ tests/unit/lambdas/test_validator.py — 14 tests
 - ✅ tests/unit/lambdas/test_merger.py — 13 tests
 - ✅ tests/unit/lambdas/test_writers.py — 12 tests (boto3 mocked)
 - ✅ tests/unit/lambdas/test_consolidator.py — 17 tests
-- ⏭️ tests/unit/scrapers/test_gold_api_com.py — 6 tests (skipped: live API)
-- ⏭️ tests/unit/scrapers/test_goldapi_io.py — 9 tests (skipped: requires GOLDAPI_IO_KEY)
-- ⏭️ tests/unit/scrapers/test_metals_dev.py — 11 tests (skipped: requires METALS_DEV_API_KEY)
-- ⏭️ tests/unit/scrapers/test_rapid_api_gold_silver.py — 13 tests (skipped: requires RAPIDAPI_KEY)
-- 🗑️ tests/unit/scrapers/test_goodreturns.py — deleted (retired scraper)
 
-All test files converted from script format (if/else + sys.exit) to proper pytest format
-(def test_* functions + assert statements). conftest.py added at project root for sys.path setup.
+**Phase 2 tests (new — 2026-05-21):**
+- ✅ tests/unit/lambdas/test_language_detector.py — 7 tests
+- ✅ tests/unit/lambdas/test_intent_classifier.py — 12 tests
+- ✅ tests/unit/lambdas/test_message_parser.py — 5 tests
+- ✅ tests/unit/lambdas/test_alert_checker.py — 15 tests
+- ✅ tests/unit/lambdas/test_alert_setup.py — 12 tests (all 4 languages, both directions, failure paths)
+
+**Scraper tests (skipped — require live API keys):**
+- ⏭️ tests/unit/scrapers/test_gold_api_com.py — 6 tests
+- ⏭️ tests/unit/scrapers/test_goldapi_io.py — 9 tests
+- ⏭️ tests/unit/scrapers/test_metals_dev.py — 11 tests
+- ⏭️ tests/unit/scrapers/test_rapid_api_gold_silver.py — 13 tests
 
 ---
 
-## 🚀 Next Steps — Phase 2
+## ✅ Phase 2 — What Is Built (2026-05-21)
 
-**Goal:** Build the WhatsApp chatbot so real users can ask price questions.
+**All Phase 2 Lambda code written, tested locally. Not yet deployed to AWS.**
 
-### Step 1 — WhatsApp Business API Setup
-- Create Meta Business account
-- Get a dedicated phone number
-- Get `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_ID`
-- Store both in AWS Secrets Manager
+### WhatsApp Credentials
+- ✅ WHATSAPP_TOKEN stored in `.env` and AWS Secrets Manager (`gold-agent/whatsapp`)
+- ✅ WHATSAPP_PHONE_NUMBER_ID: `1171841486002553`
+- ✅ WHATSAPP_VERIFY_TOKEN: `goldagent_webhook_2026`
+- ⚠️ Token is temporary (24h). Need permanent System User token before deployment.
 
-### Step 2 — Submit WhatsApp Templates
-Submit all 7 templates for Meta approval (takes 24-48 hours):
-1. welcome_message
-2. price_alert
-3. weekly_digest
-4. festival_advisory
-5. daily_morning_rate
-6. price_drop_alert
-7. price_rise_alert
+### Shared Layer (`src/shared/`)
+- ✅ `shared/models/user.py` — User dataclass with DynamoDB serialisation
+- ✅ `shared/models/price.py` — MetalPrice + PriceSnapshot dataclasses
+- ✅ `shared/models/alert.py` — AlertPreference dataclass
+- ✅ `shared/db/dynamo_client.py` — Shared boto3 DynamoDB resource
+- ✅ `shared/db/dynamo_reader.py` — get_latest_snapshot, get_user, get_user_alerts, get_all_active_alerts, get_conversation_history
+- ✅ `shared/db/dynamo_writer.py` — put_user, update_user_seen, put_alert, record_alert_trigger, put_conversation_turn
+- ✅ `shared/notifications/whatsapp_client.py` — send_text, send_template, mark_read (uses urllib, no extra deps)
+- ✅ `shared/utils/logger.py` — Structured logger
 
-### Step 3 — whatsapp-handler Lambda
-Receives webhooks from Meta, validates signature, parses messages, routes to correct intent handler.
+### whatsapp-handler Lambda (`src/lambdas/whatsapp-handler/`)
+- ✅ `signature_validator.py` — HMAC-SHA256 validation of Meta webhooks
+- ✅ `message_parser.py` — Extracts text message from Meta webhook payload
+- ✅ `language_detector.py` — Unicode range detection: Hindi/Tamil/Telugu/English
+- ✅ `intent_classifier.py` — Regex-based: price_query, alert_setup, calculator, festival_advice, trend_query, greeting, help, unknown
+- ✅ `user_manager.py` — get_or_create_user from DynamoDB
+- ✅ `session_manager.py` — load/save conversation history
+- ✅ `response_formatter.py` — Static help and unknown messages in 4 languages
+- ✅ `handler.py` — Lambda entry point: GET (webhook verify) + POST (messages), async invokes agent-brain
 
-### Step 4 — agent-brain Lambda
-Calls Anthropic Claude API. Builds context from DynamoDB live prices. Generates response in user's language.
+### conversation Lambda (`src/lambdas/conversation/`)
+- ✅ `alert_setup.py` — Full alert setup handler:
+  1. Uses Claude to extract structured params (metal, direction, threshold_inr, karat) from any natural language in any of the 4 languages
+  2. Writes `AlertPreference` to DynamoDB if extraction succeeds
+  3. Sends honest confirmation in user's language only after write succeeds
+  4. If extraction fails, sends clear clarification with examples in user's language — never pretends to set an alert it didn't set
 
-### Step 5 — conversation Lambda
-Handles: price queries, trend explanations, calculator (how much gold for X rupees), festival advice, alert setup.
+### agent-brain Lambda (`src/lambdas/agent-brain/`)
+- ✅ `context_builder.py` — Pulls latest prices from DynamoDB, formats for Claude
+- ✅ `prompt_builder.py` — System prompt with explicit CAN/CANNOT list so Claude never overpromises (honest about trends, city rates, historical data, alerts)
+- ✅ `claude_client.py` — Calls Claude claude-sonnet-4-6 with prompt caching on system prompt
+- ✅ `language_handler.py` — Appends language reminder to user messages
+- ✅ `handler.py` — Routes `alert_setup` to `conversation/alert_setup.py` before Claude is invoked; all other intents go to Claude with live price context
 
-### Step 6 — alert-checker Lambda
-Runs hourly via EventBridge. Reads all user alert preferences from DynamoDB. Checks against current live prices. Sends WhatsApp alert if threshold breached.
+### alert-checker Lambda (`src/lambdas/alert-checker/`)
+- ✅ `threshold_checker.py` — Gets per-gram INR price, checks against alert threshold
+- ✅ `cooldown_manager.py` — 12-hour cooldown between repeat alerts
+- ✅ `alert_formatter.py` — Alert messages in 4 languages for above/below triggers
+- ✅ `alert_trigger.py` — Sends WhatsApp alert, records trigger in DynamoDB
+- ✅ `handler.py` — Lambda entry point: scans all active alerts, triggers if breached
 
-### Step 7 — Wire Up API Gateway
-Point Meta webhook URL → API Gateway → whatsapp-handler Lambda.
+### Infrastructure
+- ✅ `template.yml` updated — WhatsAppHandlerFunction, AgentBrainFunction, AlertCheckerFunction + API Gateway
+- ✅ `requirements.txt` updated — added `anthropic==0.40.0`
+- ✅ Python package symlinks created: `whatsapp_handler → whatsapp-handler`, `agent_brain → agent-brain`, `alert_checker → alert-checker`
+
+---
+
+## 🐛 Issues Found and Fixed
+
+### Issue 1 — Alert setup: Claude confirmed but backend did nothing (2026-05-21)
+**What happened:** When a user asked to set a price alert (in any language), `agent-brain` passed the message to Claude. Claude replied "I've set your alert" but nothing was written to DynamoDB. The alert-checker would never fire for that user.
+
+**Root cause:** `alert_setup` intent was treated like any other intent — routed to Claude for a natural language response. Claude has no way to write to DynamoDB.
+
+**Fix applied:**
+- Built `conversation/alert_setup.py`: Claude used only to extract structured params (metal, direction, threshold, karat) → writes `AlertPreference` to DynamoDB → sends confirmation only after write succeeds. If extraction fails, sends clear clarification in user's language with examples.
+- `agent-brain/handler.py`: `alert_setup` intent now bypasses Claude and goes directly to the dedicated handler. Claude is never involved in the alert write path.
+- `prompt_builder.py`: System prompt updated with explicit CAN/CANNOT list. Claude now says "routing your alert to the system" instead of claiming to set it.
+
+**Design principle established:** Claude handles conversation only. Any action that writes to the database must go through a dedicated handler that confirms only after the write succeeds.
+
+---
+
+## 🚀 Next Steps — Phase 2 Deployment
+
+### Step 1 — Get permanent WhatsApp token
+1. In Meta developer console → Business Settings → System Users
+2. Create a System User with `whatsapp_business_messaging` permission
+3. Generate a permanent token (no expiry)
+4. Update AWS Secrets Manager: `aws secretsmanager update-secret --name gold-agent/whatsapp ...`
+
+### Step 2 — Store Anthropic API key in Secrets Manager
+```bash
+aws secretsmanager create-secret \
+  --name gold-agent/anthropic \
+  --region ap-south-1 \
+  --secret-string '{"ANTHROPIC_API_KEY": "your_key_here"}'
+```
+
+### Step 3 — Create Phase 2 IAM role
+Create `gold-agent-phase2-role` with permissions for:
+- DynamoDB: read/write on all gold-agent-* tables
+- Secrets Manager: read gold-agent/whatsapp + gold-agent/anthropic
+- Lambda: invoke gold-agent-brain
+- CloudWatch Logs: create log groups
+
+### Step 4 — Create Phase 2 DynamoDB tables
+```bash
+# Users table
+aws dynamodb create-table --table-name gold-agent-users \
+  --attribute-definitions AttributeName=phone_number,AttributeType=S \
+  --key-schema AttributeName=phone_number,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST --region ap-south-1
+
+# Alert preferences table
+aws dynamodb create-table --table-name gold-agent-alert-preferences \
+  --attribute-definitions AttributeName=phone_number,AttributeType=S AttributeName=alert_id,AttributeType=S \
+  --key-schema AttributeName=phone_number,KeyType=HASH AttributeName=alert_id,KeyType=RANGE \
+  --billing-mode PAY_PER_REQUEST --region ap-south-1
+
+# Conversation history table
+aws dynamodb create-table --table-name gold-agent-conversation-history \
+  --attribute-definitions AttributeName=phone_number,AttributeType=S AttributeName=timestamp,AttributeType=S \
+  --key-schema AttributeName=phone_number,KeyType=HASH AttributeName=timestamp,KeyType=RANGE \
+  --billing-mode PAY_PER_REQUEST --region ap-south-1
+```
+
+### Step 5 — SAM build and deploy
+```bash
+sam build && sam deploy --guided
+```
+Note the `WebhookUrl` output — this is what goes into Meta webhook config.
+
+### Step 6 — Configure Meta webhook
+1. Meta developer console → WhatsApp → Configuration
+2. Webhook URL: paste the API Gateway URL from Step 5
+3. Verify token: `goldagent_webhook_2026`
+4. Subscribe to: messages, message_deliveries, message_reads
+
+### Step 7 — Test end to end
+Send "what is gold price today" to the WhatsApp number and verify reply arrives.
 
 ---

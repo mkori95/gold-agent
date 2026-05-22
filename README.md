@@ -79,6 +79,29 @@ User never has to select a language manually.
 
 ---
 
+## What Users Can Do
+
+| What the user says | Language | What happens |
+|---|---|---|
+| "What is gold price today?" | English | Live 22K/24K prices for their city |
+| "सोने का भाव क्या है?" | Hindi | Same, replied in Hindi |
+| "தங்கம் விலை என்ன?" | Tamil | Same, replied in Tamil |
+| "బంగారం ధర ఎంత?" | Telugu | Same, replied in Telugu |
+| "Alert me when gold drops below ₹6500/gram" | Any | Alert saved to DynamoDB — WhatsApp notification fires when price crosses threshold |
+| "सोना ₹6500 से नीचे जाए तो बताना" | Hindi | Same alert, set from Hindi message |
+| "How much gold can I buy for ₹50,000?" | Any | Calculator answer with live price |
+| "Should I buy gold on Diwali?" | Any | Festival context and advice |
+| "Is gold rising or falling?" | Any | Trend explanation based on today's data |
+
+### Price Alert Flow
+When a user asks to set an alert in any language:
+1. The message is parsed to extract metal, direction, and target price
+2. The alert is written to DynamoDB
+3. The user receives a confirmation only after the alert is saved
+4. The alert-checker Lambda runs every hour and sends a WhatsApp notification when the price crosses the threshold
+
+---
+
 ## Architecture Overview
 
 - Fully serverless on AWS — no EC2, everything is Lambda
@@ -935,5 +958,5 @@ cp .env.example .env
 
 ---
 
-*Last updated: Session 4 — Scraper engine complete (base_scraper, api_fetcher, html_scraper, data_normaliser)*
+*Last updated: Session 15 — Phase 2 code complete (whatsapp-handler, agent-brain, alert-checker, alert-setup, shared layer)*
 *This README is updated at the end of every working session*
