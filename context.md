@@ -1061,14 +1061,15 @@ Run: `pytest tests/` — 134 passed, 41 skipped, 0 failed
 
 ### conversation Lambda (`src/lambdas/conversation/`)
 - ✅ `alert_setup.py` — Full alert setup handler:
-  1. Uses Claude to extract structured params (metal, direction, threshold_inr, karat) from any natural language in any of the 4 languages
-  2. Writes `AlertPreference` to DynamoDB if extraction succeeds
-  3. Sends honest confirmation in user's language only after write succeeds
-  4. If extraction fails, sends clear clarification with examples in user's language — never pretends to set an alert it didn't set
+  1. Uses Claude Haiku to extract structured params (metal, direction, threshold_inr, karat) from any natural language in any of the 4 languages
+  2. Handles INR per gram directly, INR per 10g (divides by 10), USD per troy oz (converts at ₹95/USD ÷ 31.1g), and delta/relative requests (sets threshold_inr=null → clarification)
+  3. Writes `AlertPreference` to DynamoDB if extraction succeeds
+  4. Sends honest confirmation in user's language only after write succeeds
+  5. If extraction fails, sends clear clarification with current example prices (₹14,000/gram gold, ₹90/gram silver) in user's language — never pretends to set an alert it didn't set
 
 ### agent-brain Lambda (`src/lambdas/agent-brain/`)
 - ✅ `context_builder.py` — Pulls latest prices from DynamoDB, formats for Claude
-- ✅ `prompt_builder.py` — System prompt with explicit CAN/CANNOT list so Claude never overpromises (honest about trends, city rates, historical data, alerts)
+- ✅ `prompt_builder.py` — System prompt with explicit CAN/CANNOT list so Claude never overpromises (honest about trends, city rates, historical data, alerts). Alert section: Claude does NOT say "passed to system"; instead guides user to rephrase with specific rupee-per-gram target price.
 - ✅ `claude_client.py` — Calls Claude claude-sonnet-4-6 with prompt caching on system prompt
 - ✅ `language_handler.py` — Appends language reminder to user messages
 - ✅ `handler.py` — Routes `alert_setup` to `conversation/alert_setup.py` before Claude is invoked; all other intents go to Claude with live price context
@@ -1099,6 +1100,20 @@ Run: `pytest tests/` — 134 passed, 41 skipped, 0 failed
 ---
 
 ## 🐛 Issues Found and Fixed
+
+### Issue 9 — Alert setup: USD/delta requests failed silently + misleading "passed to system" message (2026-05-22)
+**Symptom 1:** "Create an alert when gold rate increases by $100" → extraction returned null for `threshold_inr` → clarification sent, but user expected a confirmation.
+**Root cause 1:** `_EXTRACT_PROMPT` rule said "extract as-is from the message" with no conversion logic. Two input types it couldn't handle: (a) USD-denominated values — no INR/gram equivalent to extract; (b) relative/delta requests ("increases by X") — no absolute threshold to extract without current price context.
+
+**Symptom 2:** Claude replied "I've passed that to the system — you'll get a confirmation in a moment" even when no alert was actually created.
+**Root cause 2:** That string was hardcoded in `prompt_builder.py` system prompt as a fallback for alert-related messages. It fires when an alert-looking message isn't classified as `alert_setup` by the regex classifier and goes to Claude instead. Claude had no way to know the backend hadn't acted.
+
+**Fix applied:**
+- `alert_setup.py` `_EXTRACT_PROMPT`: Added explicit conversion rules — USD/troy oz amounts convert to INR/gram using `round(usd / 31.1035 * 95)`; relative delta requests ("increases by X", "drops by X") explicitly return `threshold_inr: null` (forcing clarification rather than silent failure). Added "falls" and "increases" as direction keywords.
+- `alert_setup.py` `_CLARIFICATION`: Updated stale example prices from ₹6,500/gram → ₹14,000/gram (gold 22K) and ₹80/gram → ₹90/gram (silver) across all 4 languages.
+- `prompt_builder.py`: Removed "I've passed that to the system" fallback. Replaced with: ask user to rephrase with a specific rupee-per-gram target price — e.g., "Alert me when gold drops below ₹14,000/gram". Claude no longer creates false expectations.
+
+---
 
 ### Issue 1 — Alert setup: Claude confirmed but backend did nothing (2026-05-21)
 **What happened:** When a user asked to set a price alert (in any language), `agent-brain` passed the message to Claude. Claude replied "I've set your alert" but nothing was written to DynamoDB. The alert-checker would never fire for that user.
