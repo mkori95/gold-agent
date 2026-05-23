@@ -45,11 +45,16 @@ def parse_incoming(body: dict) -> Optional[dict]:
         if msg_type == "audio":
             return {**base, "type": "audio", "media_id": msg["audio"]["id"]}
 
+        if msg_type == "button":
+            # Template quick-reply button click — payload or text used for intent classification
+            button = msg.get("button", {})
+            text = button.get("payload") or button.get("text", "")
+            return {**base, "type": "text", "text": text}
+
         if msg_type == "interactive":
             interactive = msg.get("interactive", {})
             if interactive.get("type") == "button_reply":
                 button = interactive["button_reply"]
-                # Use button id (payload) if set, fall back to title
                 text = button.get("id") or button.get("title", "")
                 return {**base, "type": "text", "text": text}
 
