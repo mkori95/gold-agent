@@ -19,13 +19,9 @@ from abc import ABC, abstractmethod
 import json
 import os
 from src.shared.utils.config_loader import load_json
+from src.shared.utils.logger import get_logger
 
-
-
-# ============================================================
-# Set up logging — every scraper uses this same logger
-# ============================================================
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BaseScraper(ABC):

@@ -43,13 +43,12 @@ load_dotenv()
 import json
 import logging
 from src.lambdas.consolidator.consolidator import Consolidator
+from src.shared.utils.logger import get_logger
 
-# Set up logging — CloudWatch picks this up automatically in Lambda
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s — %(name)s — %(levelname)s — %(message)s"
-)
+# basicConfig is a no-op in Lambda (runtime pre-installs its own handler).
+# Explicitly set root level so all child loggers emit INFO to CloudWatch.
+logging.getLogger().setLevel(logging.INFO)
+logger = get_logger(__name__)
 
 
 def handler(event, context):

@@ -19,8 +19,9 @@ import requests
 import logging
 import os
 from typing import Optional
+from src.shared.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class APIFetcher:
@@ -213,6 +214,13 @@ class APIFetcher:
     # ============================================================
     # Handle HTTP error status codes
     # ============================================================
+    def _response_body(self, response: requests.Response) -> str:
+        """Returns response body as a compact string for error logging."""
+        try:
+            return str(response.json())
+        except Exception:
+            return response.text[:300] or "(empty body)"
+
     def _handle_http_errors(self, response: requests.Response) -> None:
         """
         Checks the HTTP response status code and raises
@@ -222,51 +230,41 @@ class APIFetcher:
             response: The requests Response object
 
         Raises:
-            Exception with clear message for each error type
+            Exception with clear message and actual API response body
         """
 
         status = response.status_code
 
-        # 200 — all good
         if status == 200:
             return
 
-        # 401 — bad API key
+        body = self._response_body(response)
+
         if status == 401:
             raise Exception(
-                f"[{self.source_id}] Unauthorized (401) — "
-                f"check your API key in .env file"
+                f"[{self.source_id}] Unauthorized (401) — body: {body}"
             )
 
-        # 403 — forbidden
         if status == 403:
             raise Exception(
-                f"[{self.source_id}] Forbidden (403) — "
-                f"API key may not have access to this endpoint"
+                f"[{self.source_id}] Forbidden (403) — body: {body}"
             )
 
-        # 429 — rate limit hit
         if status == 429:
             raise Exception(
-                f"[{self.source_id}] Rate limit exceeded (429) — "
-                f"quota may be exhausted for this month"
+                f"[{self.source_id}] Rate limited (429) — body: {body}"
             )
 
-        # 404 — endpoint not found
         if status == 404:
             raise Exception(
-                f"[{self.source_id}] Endpoint not found (404) — "
-                f"check the URL in sources.json"
+                f"[{self.source_id}] Not found (404) — body: {body}"
             )
 
-        # 500 — server error on their side
         if status >= 500:
             raise Exception(
-                f"[{self.source_id}] Server error ({status}) — "
-                f"source may be down temporarily"
+                f"[{self.source_id}] Server error ({status}) — body: {body}"
             )
 
-        # Any other non-200 status
         raise Exception(
-            f"[{self.source_id}] Unexpected status code: {status}"
+            f"[{self.source_id}] Unexpected status {status} — body: {body}"
         )

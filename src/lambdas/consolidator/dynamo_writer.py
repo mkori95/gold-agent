@@ -20,15 +20,19 @@ Usage:
 
 import os
 import logging
+from src.shared.utils.logger import get_logger
 from datetime import datetime, timezone
 
 import boto3
 from botocore.exceptions import ClientError
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 LIVE_PRICES_TABLE = os.environ.get("DYNAMO_LIVE_PRICES_TABLE", "gold-agent-live-prices")
 AWS_REGION        = os.environ.get("AWS_REGION", "ap-south-1")
+
+# Indian 22K gold floor — off-hours RapidAPI returns ~₹895/gram (stale); real price is ₹14,000+
+MIN_GOLD_22K_PER_GRAM = 8_000
 
 
 class DynamoWriter:
@@ -100,10 +104,50 @@ class DynamoWriter:
                 reason="DynamoDB table not initialised"
             )
 
-        records_written = 0
+        records_written  = 0
+        records_skipped  = 0
+        skip_reasons     = []
+
+        logger.info(
+            f"DynamoWriter starting — "
+            f"{len(metals)} metals to evaluate: {list(metals.keys())} — "
+            f"snapshot_id: {snapshot.get('snapshot_id')}"
+        )
 
         for metal, metal_data in metals.items():
             try:
+                sources_count = metal_data.get("sources_count", 0)
+                sources_used  = metal_data.get("sources_used", [])
+
+                # ── Guard 1: minimum 2 spot-price sources for gold ──────────
+                if metal == "gold" and sources_count < 2:
+                    reason = f"only {sources_count} source ({sources_used}) — need ≥2"
+                    logger.warning(f"[GOLD] SKIPPED — {reason} — keeping existing DynamoDB value")
+                    skip_reasons.append(f"gold: {reason}")
+                    records_skipped += 1
+                    continue
+
+                # ── Guard 2: 22K per-gram sanity floor ──────────────────────
+                if metal == "gold":
+                    city_rates_raw = metal_data.get("city_rates", {})
+                    INTL = {"united-states", "united-kingdom", "dubai"}
+                    indian = {k: v for k, v in city_rates_raw.items() if k not in INTL}
+                    rates_22k = [
+                        v.get("22K") for v in indian.values()
+                        if isinstance(v, dict) and v.get("22K")
+                    ]
+                    if rates_22k:
+                        avg_per_gram = sum(rates_22k) / len(rates_22k) / 10
+                        if avg_per_gram < MIN_GOLD_22K_PER_GRAM:
+                            reason = (
+                                f"22K city avg ₹{avg_per_gram:.0f}/gram below floor "
+                                f"₹{MIN_GOLD_22K_PER_GRAM} — sources: {sources_used}"
+                            )
+                            logger.warning(f"[GOLD] SKIPPED — {reason} — keeping existing DynamoDB value")
+                            skip_reasons.append(f"gold: {reason}")
+                            records_skipped += 1
+                            continue
+
                 self._write_metal_record(
                     metal=metal,
                     metal_data=metal_data,
@@ -114,16 +158,19 @@ class DynamoWriter:
                 records_written += 1
 
             except Exception as e:
-                # One metal failing does not stop others
-                logger.error(
-                    f"DynamoWriter failed to write {metal} — {str(e)}"
-                )
+                logger.error(f"[{metal.upper()}] write failed — {str(e)}", exc_info=True)
                 continue
 
         logger.info(
             f"DynamoWriter complete — "
-            f"{records_written}/{len(metals)} metals written to {self.table_name}"
+            f"written: {records_written} — "
+            f"skipped: {records_skipped} — "
+            f"table: {self.table_name}"
         )
+        if skip_reasons:
+            logger.warning(
+                f"DynamoWriter skip summary — {skip_reasons}"
+            )
 
         return self._build_result(
             status="success",
@@ -199,12 +246,23 @@ class DynamoWriter:
             "updated_at":     datetime.now(timezone.utc).isoformat()
         }
 
+        logger.info(
+            f"[{metal.upper()}] Writing to DynamoDB — "
+            f"price_usd: ${metal_data.get('price_usd')} — "
+            f"price_22k_inr: ₹{price_22k_inr}/gram — "
+            f"price_24k_inr: ₹{price_24k_inr}/gram — "
+            f"city_rates_count: {len(city_rates_simple)} — "
+            f"sources: {metal_data.get('sources_used')}"
+        )
+
         self.table.put_item(Item=item)
 
         logger.info(
-            f"DynamoWriter wrote {metal} — "
-            f"price_usd: ${metal_data.get('price_usd')} — "
-            f"price_inr: ₹{metal_data.get('price_inr')} — "
+            f"[{metal.upper()}] WRITTEN OK — "
+            f"snapshot_id: {snapshot_id} — "
+            f"22K: ₹{price_22k_inr}/gram — "
+            f"24K: ₹{price_24k_inr}/gram — "
+            f"USD: ${metal_data.get('price_usd')} — "
             f"confidence: {metal_data.get('confidence')}"
         )
 

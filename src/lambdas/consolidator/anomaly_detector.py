@@ -28,9 +28,10 @@ Usage:
 import json
 import os
 import logging
+from src.shared.utils.logger import get_logger
 from src.shared.utils.config_loader import load_json
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AnomalyDetector:

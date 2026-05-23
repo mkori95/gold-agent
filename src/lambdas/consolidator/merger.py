@@ -33,10 +33,11 @@ Usage:
 """
 
 import logging
+from src.shared.utils.logger import get_logger
 from src.lambdas.consolidator.anomaly_detector import AnomalyDetector
 from src.lambdas.consolidator.trimmed_mean import TrimmedMean
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Metals we expect to process
 KNOWN_METALS = ["gold", "silver", "platinum", "copper"]

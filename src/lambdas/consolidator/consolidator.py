@@ -41,6 +41,7 @@ load_dotenv()
 import json
 import os
 import logging
+from src.shared.utils.logger import get_logger
 from datetime import datetime, timezone
 from src.shared.utils.config_loader import load_json
 
@@ -49,7 +50,7 @@ from src.lambdas.consolidator.merger        import Merger
 from src.lambdas.consolidator.dynamo_writer import DynamoWriter
 from src.lambdas.consolidator.s3_writer     import S3Writer
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 from src.scrapers.engine.secrets_manager import SecretsManager
 

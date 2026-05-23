@@ -28,8 +28,9 @@ Usage:
 """
 
 import logging
+from src.shared.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Spread thresholds — percentage
 SPREAD_WARNING_THRESHOLD  = 1.0   # log warning above this

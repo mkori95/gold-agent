@@ -32,8 +32,9 @@ Usage:
 """
 
 import logging
+from src.shared.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Required fields on the scraper result wrapper
 REQUIRED_RESULT_FIELDS = [
