@@ -59,6 +59,20 @@ SUMMARY_UNSUBSCRIBE_MESSAGES = {
     "te": "సరే! ఇకపై రోజువారీ సారాంశం రాదు. మళ్ళీ పొందడానికి *daily update* అని టైప్ చేయండి.",
 }
 
+SUMMARY_ALREADY_SUBSCRIBED_MESSAGES = {
+    "en": "You're already subscribed to daily gold updates! You'll receive them every morning around 11:45 AM IST.\n\nReply *stop summary* anytime to unsubscribe.",
+    "hi": "आप पहले से सब्सक्राइब्ड हैं! हर सुबह 11:45 बजे सोने का भाव मिलता रहेगा।\n\n*stop summary* लिखकर बंद कर सकते हैं।",
+    "ta": "நீங்கள் ஏற்கனவே சந்தா செலுத்தியுள்ளீர்கள்! தினமும் காலை 11:45 மணிக்கு விலை வரும்.\n\n*stop summary* என்று தட்டச்சு செய்து நிறுத்தலாம்.",
+    "te": "మీరు ఇప్పటికే సబ్స్క్రైబ్ చేసారు! ప్రతిరోజూ ఉదయం 11:45 గంటలకు ధర వస్తుంది.\n\n*stop summary* అని టైప్ చేసి ఆపవచ్చు.",
+}
+
+SUMMARY_ALREADY_UNSUBSCRIBED_MESSAGES = {
+    "en": "You're not currently subscribed to daily updates. Reply *daily update* anytime to subscribe.",
+    "hi": "आप अभी सब्सक्राइब्ड नहीं हैं। सब्सक्राइब करने के लिए *daily update* लिखें।",
+    "ta": "நீங்கள் தினசரி புதுப்பிப்புகளுக்கு சந்தா செலுத்தவில்லை. சந்தா செலுத்த *daily update* என்று தட்டச்சு செய்யுங்கள்.",
+    "te": "మీరు ప్రస్తుతం రోజువారీ అప్డేట్‌లకు సబ్స్క్రైబ్ చేయలేదు. సబ్స్క్రైబ్ చేయడానికి *daily update* అని టైప్ చేయండి.",
+}
+
 
 def help_message(language: str) -> str:
     return HELP_MESSAGES.get(language, HELP_MESSAGES["en"])
@@ -74,3 +88,11 @@ def summary_subscribe_message(language: str) -> str:
 
 def summary_unsubscribe_message(language: str) -> str:
     return SUMMARY_UNSUBSCRIBE_MESSAGES.get(language, SUMMARY_UNSUBSCRIBE_MESSAGES["en"])
+
+
+def summary_already_subscribed_message(language: str) -> str:
+    return SUMMARY_ALREADY_SUBSCRIBED_MESSAGES.get(language, SUMMARY_ALREADY_SUBSCRIBED_MESSAGES["en"])
+
+
+def summary_already_unsubscribed_message(language: str) -> str:
+    return SUMMARY_ALREADY_UNSUBSCRIBED_MESSAGES.get(language, SUMMARY_ALREADY_UNSUBSCRIBED_MESSAGES["en"])

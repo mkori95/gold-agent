@@ -16,6 +16,7 @@ from src.lambdas.whatsapp_handler.intent_classifier import classify_intent
 from src.lambdas.whatsapp_handler.user_manager import get_or_create_user
 from src.lambdas.whatsapp_handler.response_formatter import (
     help_message, summary_subscribe_message, summary_unsubscribe_message,
+    summary_already_subscribed_message, summary_already_unsubscribed_message,
 )
 from src.shared.db.dynamo_writer import toggle_daily_summary
 from src.shared.notifications.whatsapp_client import send_text, mark_read, download_media
@@ -125,13 +126,19 @@ def _handle_message(event: dict) -> dict:
         return _response(200, {"status": "ok"})
 
     if intent == "summary_subscribe":
-        toggle_daily_summary(phone_number, enabled=True)
-        send_text(phone_number, summary_subscribe_message(effective_language))
+        if user.daily_summary:
+            send_text(phone_number, summary_already_subscribed_message(effective_language))
+        else:
+            toggle_daily_summary(phone_number, enabled=True)
+            send_text(phone_number, summary_subscribe_message(effective_language))
         return _response(200, {"status": "ok"})
 
     if intent == "summary_unsubscribe":
-        toggle_daily_summary(phone_number, enabled=False)
-        send_text(phone_number, summary_unsubscribe_message(effective_language))
+        if not user.daily_summary:
+            send_text(phone_number, summary_already_unsubscribed_message(effective_language))
+        else:
+            toggle_daily_summary(phone_number, enabled=False)
+            send_text(phone_number, summary_unsubscribe_message(effective_language))
         return _response(200, {"status": "ok"})
 
     # For all other intents (including "unknown") — invoke agent-brain async.
