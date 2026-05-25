@@ -561,7 +561,7 @@ PRIORITY 3 — Market Rate + Education (Phase 2)
 ### Phase 1 — The Engine ✅ COMPLETE
 Fully automated data pipeline running in AWS Lambda. EventBridge fires daily at 6AM IST. Prices collected from 4 sources, consensus calculated, written to DynamoDB + S3.
 
-### Phase 2 — The Product ✅ COMPLETE — DEPLOYED AND LIVE (2026-05-22)
+### Phase 2 — The Product ✅ COMPLETE — DEPLOYED AND LIVE (2026-05-22, fully done 2026-05-25)
 WhatsApp chatbot with real users. Receive messages, answer price questions, set alerts. Bot is live on WhatsApp, responding correctly in all 4 languages with accurate Indian market prices.
 
 ### Phase 3 — The Community
@@ -612,7 +612,7 @@ gold-agent/
 │   │   ├── agent-brain/                    ✅ DEPLOYED — Claude chat, context builder, prompt
 │   │   ├── alert-checker/                  ✅ DEPLOYED — hourly threshold check, WhatsApp alerts
 │   │   ├── conversation/                   ✅ DEPLOYED — alert_setup.py, alert_manager.py
-│   │   ├── daily-digest/                   ✅ code complete — NOT deployed (awaiting Meta template)
+│   │   ├── daily-digest/                   ✅ DEPLOYED AND LIVE — English template approved, all users get English digest
 │   │   ├── festival-advisory/              ← Phase 3 stub
 │   │   ├── gamification/                   ← Phase 3 stub
 │   │   ├── location/                       ← Phase 3 stub
@@ -1198,15 +1198,19 @@ Haiku 4.5 (`claude-haiku-4-5-20251001`) was tested on `price_query` intent and r
 
 ## 🚀 Next Steps
 
-**Immediate (blocked on Meta):**
-- Enhancement 1 (daily digest): waiting for Meta template approval. Once approved → `sam build && sam deploy` to go live.
+**Phase 3 — The Community (next major milestone):**
+- Crowdsourced jeweller rates (code stubs exist in src/lambdas/rate-validator/)
+- Location search via Google Places (stub in src/lambdas/location/)
+- Gamification badges (stub in src/lambdas/gamification/)
 
-**After Enhancement 1 deploys:**
-- Phase 3: crowdsourced jeweller rates, location search, gamification (code stubs exist in src/lambdas/)
+**Daily digest — multi-language templates:**
+- English template (`gold_agent_daily_update`) is approved and live
+- Hindi, Tamil, Telugu templates not yet submitted to Meta
+- For now: all users (regardless of language) receive the English template — `language_code="en"` hardcoded in handler.py
+- Submit language-specific templates to Meta when ready
 
 **Ongoing:**
 - Monitor CloudWatch logs for runtime errors in production
-- Add more test phone numbers to Meta sandbox if needed (currently limited to whitelisted numbers in dev mode)
 
 ### Re-deploy command (for any future changes)
 ```bash
@@ -1219,7 +1223,7 @@ aws lambda invoke --function-name gold-agent-consolidator --region ap-south-1 --
 
 ---
 
-## ✅ Enhancement 1 — Daily Summary (2026-05-22, code complete, NOT YET DEPLOYED — awaiting Meta template approval)
+## ✅ Enhancement 1 — Daily Summary (DEPLOYED AND LIVE — 2026-05-25)
 
 ### 18K Price Fix
 - `src/lambdas/consolidator/dynamo_writer.py` — writes `price_18k_inr` derived from `price_22k_inr * 18/22` (same Indian retail basis)
@@ -1251,7 +1255,15 @@ aws lambda invoke --function-name gold-agent-consolidator --region ap-south-1 --
 - Reasoning: Indian jewellers update 10AM-12PM. 11:15AM consolidator captures most cities. 11:45AM summary goes out 30 min later.
 
 ### WhatsApp Template
-Submitted to Meta for approval (2026-05-22). Category: UTILITY. Variables: city, date, price_22k, price_24k, price_18k, price_silver, price_platinum, diff values, updated_time, yesterday_date. Waiting for Meta approval (typically 24-48hrs) before deploying this Lambda.
+- Template name: `gold_agent_daily_update`. Category: UTILITY.
+- English template approved by Meta. Lambda deployed and live as of 2026-05-25.
+- All users receive the English template regardless of their language preference (`language_code="en"` hardcoded in handler.py).
+- Hindi/Tamil/Telugu templates not yet submitted — will use same English template until approved.
+- Variables: city, date, price_22k, price_24k, price_18k, price_silver, price_platinum, diff values, updated_time, yesterday_date.
+
+### Opt-In Idempotency Fix (2026-05-25)
+- `whatsapp-handler/handler.py` — checks `user.daily_summary` before toggling. If already subscribed → sends "already subscribed" message, no DynamoDB write. Same guard for unsubscribe.
+- `response_formatter.py` — added `SUMMARY_ALREADY_SUBSCRIBED_MESSAGES` and `SUMMARY_ALREADY_UNSUBSCRIBED_MESSAGES` in all 4 languages.
 
 ---
 
@@ -1282,6 +1294,26 @@ Docker Desktop proxy (`http.docker.internal:3128`) kills large ECR layer pushes.
 
 ### ECR repository policy (already applied)
 Lambda service needs pull permission on the ECR repo. Applied once with `aws ecr set-repository-policy`. Required adding `ecr:SetRepositoryPolicy` to `gold-agent-dev` IAM user first.
+
+---
+
+## ✅ Production Hardening (2026-05-24)
+
+### DynamoDB Stale Price Guards
+Two guards added to `src/lambdas/consolidator/dynamo_writer.py` to prevent bad data writes:
+- **Guard 1 — Minimum 2 sources:** Gold skipped if only 1 spot-price source responds. Keeps existing DynamoDB value.
+- **Guard 2 — 22K sanity floor (₹8,000/gram):** Gold skipped if Indian city average 22K rate is below ₹8,000/gram — catches all-sources-stale scenarios (e.g. off-hours RapidAPI returning ~₹895/gram). Floor constant: `MIN_GOLD_22K_PER_GRAM = 8_000`.
+
+### CloudWatch Logging Fix
+- `src/lambdas/consolidator/handler.py` — `logging.basicConfig()` is a no-op in Lambda (runtime pre-installs its own handler). Fix: `logging.getLogger().setLevel(logging.INFO)` sets root logger level so all child loggers emit INFO to CloudWatch.
+- `src/shared/utils/logger.py` — `get_logger()` now Lambda-aware: skips adding `StreamHandler` when `AWS_LAMBDA_FUNCTION_NAME` env var is present (prevents double logging in Lambda). Adds StreamHandler only for local dev.
+- All 7 consolidator modules switched from `logging.getLogger()` to `get_logger()`.
+
+### API Error Body Logging
+- `src/scrapers/engine/api_fetcher.py` — added `_response_body()` helper. All HTTP error handlers (401/403/429/404/5xx) now include the actual API response body in the exception message. Previously showed generic messages — now shows e.g. `"Forbidden (403) — body: {'error': 'Monthly API quota exceeded.'}"`.
+
+### goldapi_io Quota Exhausted
+- goldapi_io monthly quota exhausted (403 on all endpoints). Consolidator runs with 2 sources (gold_api_com + metals_dev), confidence = "medium". Guard 1 would catch if it drops to 1. Auto-recovers when quota resets next month.
 
 ---
 
