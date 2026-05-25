@@ -564,8 +564,34 @@ Fully automated data pipeline running in AWS Lambda. EventBridge fires daily at 
 ### Phase 2 — The Product ✅ COMPLETE — DEPLOYED AND LIVE (2026-05-22, fully done 2026-05-25)
 WhatsApp chatbot with real users. Receive messages, answer price questions, set alerts. Bot is live on WhatsApp, responding correctly in all 4 languages with accurate Indian market prices.
 
-### Phase 3 — The Community
-Crowdsourced jeweller rates, location services, gamification.
+### Phase 3 — The Community (next)
+Features in priority order:
+
+1. **Buy/Wait Recommendation Engine** — "Should I buy gold now?"
+   - Claude-powered verdict using S3 historical price trends, festival calendar (`config/festivals.json`), and seasonal patterns
+   - Example output: "Prices are 3% above last month's average and Akshaya Tritiya is 12 days away — jewellers typically raise 5-7% the week before. Consider buying before 2nd May."
+   - No competitor does this for Indian retail buyers. Uses data already in S3 — no new infrastructure needed.
+   - New Lambda: `src/lambdas/buy-advisor/`
+
+2. **Nearest Jewellers via Google Places** — "Find jewellers near me"
+   - Google Places API integration — user sends location or city, bot returns nearest jewellers with ratings
+   - Combined with crowdsourced rates: "nearest jewellers + what real buyers paid there recently"
+   - New Lambda: `src/lambdas/location/` (stub exists)
+   - Needs: `GOOGLE_PLACES_KEY` env var (already in env var list)
+
+3. **Festival Advisory** — proactive "right time to buy" alerts before every festival
+   - Code stub exists in `src/lambdas/festival-advisory/`
+   - EventBridge checks festival calendar daily, triggers advisory 7 days before any festival
+   - Sends proactive WhatsApp to all opted-in users in relevant region in their language
+
+4. **Crowdsourced Jeweller Rates** — community-reported rates per jeweller
+   - Users report rates after visiting a jeweller; validated against 6 guardrails (min 3 reports, <2% spread, ±5% of market, <24hr old, reputation-weighted, 1 report/user/jeweller)
+   - New Lambda: `src/lambdas/rate-validator/` (stub exists)
+   - DynamoDB tables: `community_rates`, `jeweller_community_summary`, `user_reputation`
+
+5. **Gamification** — badges for community contributors
+   - Stub exists in `src/lambdas/gamification/`
+   - Triggers after crowdsourced rates are live
 
 ### Phase 4 — The Business
 Revenue, web dashboard, scale.
@@ -1199,9 +1225,12 @@ Haiku 4.5 (`claude-haiku-4-5-20251001`) was tested on `price_query` intent and r
 ## 🚀 Next Steps
 
 **Phase 3 — The Community (next major milestone):**
-- Crowdsourced jeweller rates (code stubs exist in src/lambdas/rate-validator/)
-- Location search via Google Places (stub in src/lambdas/location/)
-- Gamification badges (stub in src/lambdas/gamification/)
+Priority order:
+1. Buy/Wait recommendation engine (`src/lambdas/buy-advisor/`) — uses existing S3 history + festivals.json + Claude
+2. Nearest jewellers via Google Places (`src/lambdas/location/` stub exists)
+3. Festival advisory (`src/lambdas/festival-advisory/` stub exists)
+4. Crowdsourced jeweller rates (`src/lambdas/rate-validator/` stub exists)
+5. Gamification badges (`src/lambdas/gamification/` stub exists)
 
 **Daily digest — multi-language templates:**
 - English template (`gold_agent_daily_update`) is approved and live
